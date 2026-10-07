@@ -144,7 +144,7 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Sin registro público: los usuarios los crea el administrador
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

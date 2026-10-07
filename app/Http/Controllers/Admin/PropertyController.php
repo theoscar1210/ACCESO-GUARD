@@ -9,6 +9,7 @@ use App\Models\PropertyRental;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -166,6 +167,7 @@ class PropertyController extends Controller
             'user_id' => 'required|exists:users,id',
             'since_date' => 'nullable|date',
         ]);
+        $this->ensureUserHasRole($data['user_id'], 'Propietario');
 
         $property->owners()->syncWithoutDetaching([
             $data['user_id'] => ['since_date' => $data['since_date'] ?? null],
@@ -190,6 +192,7 @@ class PropertyController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after:start_date',
         ]);
+        $this->ensureUserHasRole($data['user_id'], 'Residente');
 
         // Cerrar arrendamiento activo previo si existe
         $property->rentals()->where('is_active', true)->update(['is_active' => false]);
@@ -212,5 +215,14 @@ class PropertyController extends Controller
             ->update(['is_active' => false, 'end_date' => now()->toDateString()]);
 
         return back()->with('success', 'Arrendamiento finalizado.');
+    }
+
+    private function ensureUserHasRole(int|string $userId, string $role): void
+    {
+        if (! User::role($role)->whereKey($userId)->exists()) {
+            throw ValidationException::withMessages([
+                'user_id' => "El usuario seleccionado no tiene el rol {$role}.",
+            ]);
+        }
     }
 }

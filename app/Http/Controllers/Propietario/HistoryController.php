@@ -16,7 +16,8 @@ class HistoryController extends Controller
         $apartment = $user->property_number;
 
         $entries = Entry::with('exit')
-            ->when($apartment, fn ($q) => $q->where('apartment', $apartment))
+            // Sin inmueble asignado no hay historial que mostrar
+            ->when($apartment, fn ($q) => $q->where('apartment', $apartment), fn ($q) => $q->whereRaw('1 = 0'))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('entry_at', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('entry_at', '<=', $request->date_to))

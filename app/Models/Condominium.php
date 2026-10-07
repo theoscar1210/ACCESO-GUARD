@@ -4,12 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Condominium extends Model
 {
-    protected $fillable = ['name', 'address', 'rif', 'phone', 'email', 'is_active'];
+    protected $table = 'condominiums';
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $fillable = [
+        'name', 'slug', 'address', 'city', 'country', 'phone',
+        'email', 'logo', 'timezone', 'is_active', 'settings',
+    ];
+
+    protected $casts = ['is_active' => 'boolean', 'settings' => 'array'];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Condominium $condominium) {
+            $condominium->slug ??= Str::slug($condominium->name);
+        });
+    }
 
     public function users(): HasMany
     {

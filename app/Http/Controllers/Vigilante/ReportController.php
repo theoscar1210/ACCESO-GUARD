@@ -23,7 +23,7 @@ class ReportController extends Controller
             'format' => 'required|in:pdf,excel',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date|after_or_equal:date_from',
-            'type' => 'nullable|in:propietario,autorizado,visitante',
+            'type' => 'nullable|in:propietario,residente,autorizado,visitante',
             'cedula' => 'nullable|string',
             'only' => 'nullable|in:entries,exits',
         ]);

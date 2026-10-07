@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCondominium;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Announcement extends Model
 {
+    use BelongsToCondominium;
+
     protected $fillable = ['created_by', 'title', 'body', 'target', 'send_push'];
 
     protected $casts = ['send_push' => 'boolean'];

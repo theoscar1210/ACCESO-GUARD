@@ -23,11 +23,8 @@ use App\Http\Controllers\Vigilante\EntryController;
 use App\Http\Controllers\Vigilante\ExitController;
 use App\Http\Controllers\Vigilante\ReportController;
 use Illuminate\Support\Facades\Route;
-use Laravel\Fortify\Features;
 
-Route::inertia('/', 'Welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
 

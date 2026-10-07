@@ -12,6 +12,9 @@ class SetCurrentCondominium
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Evita arrastrar el condominio de una petición anterior en el mismo proceso
+        App::forgetInstance('current_condominium');
+
         $user = $request->user();
 
         if ($user && $user->condominium_id) {

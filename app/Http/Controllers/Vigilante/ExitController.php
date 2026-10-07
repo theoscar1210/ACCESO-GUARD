@@ -41,12 +41,16 @@ class ExitController extends Controller
             'observations' => 'nullable|string',
         ]);
 
+        $count = 0;
+
         foreach ($request->entry_ids as $entryId) {
             $entry = Entry::active()->find($entryId);
 
             if (! $entry) {
                 continue;
             }
+
+            $count++;
 
             ExitRecord::create([
                 'entry_id' => $entry->id,
@@ -56,7 +60,6 @@ class ExitController extends Controller
             ]);
         }
 
-        $count = count($request->entry_ids);
         $msg = $count === 1 ? '1 salida registrada.' : "{$count} salidas registradas.";
 
         return redirect()->route('vigilante.exits.index')

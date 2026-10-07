@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,11 +16,7 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
-        // Comunicados dirigidos a este usuario (todos, su rol, o específicamente)
-        $role = strtolower($user->getRoleNames()->first() ?? '');
-
-        $announcements = Announcement::whereIn('target', ['all', $role])
-            ->orWhereHas('readers', fn ($q) => $q->where('user_id', $user->id))
+        $announcements = $this->addressedTo($user)
             ->orderByDesc('created_at')
             ->get()
             ->map(fn ($a) => [
@@ -36,11 +34,19 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
-        $a = Announcement::findOrFail($id);
+        $a = $this->addressedTo($user)->findOrFail($id);
         $a->readers()->syncWithoutDetaching([
             $user->id => ['read_at' => now()],
         ]);
 
         return back();
+    }
+
+    /** Comunicados dirigidos al usuario: los generales y los de su rol */
+    private function addressedTo(User $user): Builder
+    {
+        $role = strtolower($user->getRoleNames()->first() ?? '');
+
+        return Announcement::whereIn('target', ['all', $role]);
     }
 }
