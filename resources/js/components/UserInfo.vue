@@ -15,10 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { getInitials } = useInitials();
 
-// Compute whether we should show the avatar image
-const avatarSrc = computed(
-    () => (props.user as any).avatar_url ?? null,
-);
+const avatarSrc = computed(() => props.user.avatar_url ?? null);
 </script>
 
 <template>

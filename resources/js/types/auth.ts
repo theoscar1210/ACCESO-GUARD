@@ -2,6 +2,8 @@ export type User = {
     id: number;
     first_name: string;
     last_name: string;
+    name: string;
+    avatar_url: string | null;
     cedula: string;
     phone: string | null;
     username: string;

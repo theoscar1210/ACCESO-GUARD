@@ -43,9 +43,17 @@ class User extends Authenticatable
         ];
     }
 
+    /** Nombre completo como `name`, que es lo que espera el frontend */
+    protected $appends = ['name'];
+
     public function getFullNameAttribute(): string
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    public function getNameAttribute(): string
+    {
+        return $this->full_name;
     }
 
     /** Propiedades que posee (propietario) */
