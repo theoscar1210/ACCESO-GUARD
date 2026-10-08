@@ -18,6 +18,9 @@ class Entry extends Model
         'cedula',
         'apartment',
         'to_administration',
+        'work_worker_id',
+        'work_id',
+        'supplier_company',
         'type',
         'vehicle',
         'plate',
@@ -45,6 +48,24 @@ class Entry extends Model
     public function registeredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /** Trabajador de obra con el que se registró el ingreso (si aplica) */
+    public function workWorker(): BelongsTo
+    {
+        return $this->belongsTo(WorkWorker::class);
+    }
+
+    /** Obra a la que un proveedor entregó material (si aplica) */
+    public function work(): BelongsTo
+    {
+        return $this->belongsTo(Work::class);
+    }
+
+    /** Obra relacionada: la del trabajador o la de la entrega del proveedor */
+    public function relatedWork(): ?Work
+    {
+        return $this->workWorker?->work ?? $this->work;
     }
 
     public function exit(): HasOne

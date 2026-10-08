@@ -42,11 +42,13 @@ const typeLabel: Record<string, string> = {
     residente: 'Residente',
     autorizado: 'Autorizado',
     visitante: 'Visitante',
+    proveedor: 'Proveedor',
 };
 const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     propietario: 'default',
     autorizado: 'secondary',
     visitante: 'outline',
+    proveedor: 'secondary',
 };
 </script>
 

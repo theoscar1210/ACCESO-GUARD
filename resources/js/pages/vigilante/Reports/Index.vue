@@ -134,6 +134,7 @@ async function exportReport() {
                         <option value="propietario">Propietario</option>
                         <option value="autorizado">Autorizado</option>
                         <option value="visitante">Visitante</option>
+                        <option value="proveedor">Proveedor</option>
                     </select>
                 </div>
 

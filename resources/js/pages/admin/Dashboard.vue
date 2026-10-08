@@ -4,6 +4,7 @@ import {
     Activity,
     Building2,
     ClipboardList,
+    HardHat,
     Shield,
     Users,
 } from 'lucide-vue-next';
@@ -14,6 +15,10 @@ import type { Auth } from '@/types';
 const { auth } = usePage<{ auth: Auth }>().props;
 
 interface Stats {
+    works_pending: number;
+    works_current: number;
+    tools_alert: number;
+    material_exits_pending: number;
     users: number;
     properties: number;
     entries_today: number;
@@ -36,11 +41,13 @@ const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     residente: 'default',
     autorizado: 'secondary',
     visitante: 'outline',
+    proveedor: 'secondary',
 };
 const typeLabel: Record<string, string> = {
     propietario: 'Propietario',
     autorizado: 'Autorizado',
     visitante: 'Visitante',
+    proveedor: 'Proveedor',
     residente: 'Residente',
 };
 </script>
@@ -119,6 +126,29 @@ const typeLabel: Record<string, string> = {
                     <p class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">{{ stats.authorizations }}</p>
                 </div>
             </div>
+
+            <!-- Obras -->
+            <Link href="/works" class="grid grid-cols-2 gap-2 rounded-xl border bg-card p-3 shadow-sm transition-colors hover:border-primary/40 sm:grid-cols-4 sm:gap-4 sm:p-4">
+                <div class="flex items-center gap-2">
+                    <HardHat class="h-5 w-5 shrink-0 text-primary" />
+                    <div>
+                        <p class="text-xl font-bold leading-none">{{ stats.works_current }}</p>
+                        <p class="text-xs text-muted-foreground">obras vigentes</p>
+                    </div>
+                </div>
+                <div>
+                    <p :class="['text-xl font-bold leading-none', stats.works_pending ? 'text-amber-600' : '']">{{ stats.works_pending }}</p>
+                    <p class="text-xs text-muted-foreground">por aprobar</p>
+                </div>
+                <div>
+                    <p :class="['text-xl font-bold leading-none', stats.material_exits_pending ? 'text-amber-600' : '']">{{ stats.material_exits_pending }}</p>
+                    <p class="text-xs text-muted-foreground">salidas de material por aprobar</p>
+                </div>
+                <div>
+                    <p :class="['text-xl font-bold leading-none', stats.tools_alert ? 'text-red-600' : '']">{{ stats.tools_alert }}</p>
+                    <p class="text-xs text-muted-foreground">herramientas sin cuadrar</p>
+                </div>
+            </Link>
 
             <!-- Accesos rápidos -->
             <div class="grid grid-cols-3 gap-2 sm:gap-3">

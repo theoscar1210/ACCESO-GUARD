@@ -6,10 +6,12 @@ use App\Http\Controllers\Admin\EntryController as AdminEntryController;
 use App\Http\Controllers\Admin\FamilyMemberController;
 use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WorkSettingsController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\CarnetController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MaterialExitController;
 use App\Http\Controllers\Propietario\AuthorizationController as PropietarioAuthorizationController;
 use App\Http\Controllers\Propietario\DashboardController as PropietarioDashboardController;
 use App\Http\Controllers\Propietario\HistoryController as PropietarioHistoryController;
@@ -22,6 +24,7 @@ use App\Http\Controllers\Vigilante\DashboardController as VigDashboardController
 use App\Http\Controllers\Vigilante\EntryController;
 use App\Http\Controllers\Vigilante\ExitController;
 use App\Http\Controllers\Vigilante\ReportController;
+use App\Http\Controllers\WorkController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -46,7 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('push/subscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
 
     // Administrador
-    Route::middleware('role:Administrador')->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware('role:Administrador|Superusuario')->prefix('admin')->name('admin.')->group(function () {
         Route::get('dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
         Route::get('entries', [AdminEntryController::class, 'index'])->name('entries.index');
@@ -67,10 +70,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('announcements', [AdminAnnouncementController::class, 'index'])->name('announcements.index');
         Route::get('announcements/create', [AdminAnnouncementController::class, 'create'])->name('announcements.create');
         Route::post('announcements', [AdminAnnouncementController::class, 'store'])->name('announcements.store');
+
+        // Configuración de obras: solo superusuario
+        Route::middleware('role:Superusuario')->group(function () {
+            Route::get('settings/works', [WorkSettingsController::class, 'edit'])->name('settings.works.edit');
+            Route::put('settings/works', [WorkSettingsController::class, 'update'])->name('settings.works.update');
+        });
     });
 
+    // Obras (todos los roles; los permisos los decide WorkPermissions)
+    Route::get('works', [WorkController::class, 'index'])->name('works.index');
+    Route::get('works/create', [WorkController::class, 'create'])->name('works.create');
+    Route::post('works', [WorkController::class, 'store'])->name('works.store');
+    Route::get('works/{work}', [WorkController::class, 'show'])->name('works.show');
+    Route::put('works/{work}', [WorkController::class, 'update'])->name('works.update');
+    Route::post('works/{work}/decision', [WorkController::class, 'decide'])->name('works.decide');
+    Route::post('works/{work}/workers', [WorkController::class, 'addWorker'])->name('works.workers.store');
+    Route::delete('works/{work}/workers/{worker}', [WorkController::class, 'removeWorker'])->name('works.workers.destroy');
+    Route::get('works/{work}/acta', [WorkController::class, 'acta'])->name('works.acta');
+    Route::post('works/{work}/material-exits', [MaterialExitController::class, 'store'])->name('works.material-exits.store');
+    Route::post('works/{work}/material-exits/{materialExit}/decision', [MaterialExitController::class, 'decide'])->name('works.material-exits.decide');
+
     // Vigilante
-    Route::middleware('role:Vigilante')->prefix('vigilante')->name('vigilante.')->group(function () {
+    Route::middleware('role:Vigilante|Superusuario')->prefix('vigilante')->name('vigilante.')->group(function () {
         Route::get('dashboard', [VigDashboardController::class, 'index'])->name('dashboard');
         Route::get('entries', [EntryController::class, 'index'])->name('entries.index');
         Route::get('entries/create', [EntryController::class, 'create'])->name('entries.create');
@@ -79,6 +101,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('entries/lookup-plate', [EntryController::class, 'lookupByPlate'])->name('entries.lookup-plate');
         Route::get('exits', [ExitController::class, 'index'])->name('exits.index');
         Route::post('exits', [ExitController::class, 'store'])->name('exits.store');
+        Route::get('exits/{entry}/tools', [ExitController::class, 'tools'])->name('exits.tools');
         Route::get('authorizations', [VigilanteAuthorizationController::class, 'index'])->name('authorizations.index');
         Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
         Route::post('reports/export', [ReportController::class, 'export'])->name('reports.export');

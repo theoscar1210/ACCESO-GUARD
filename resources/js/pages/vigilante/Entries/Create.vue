@@ -7,6 +7,7 @@ import {
     BadgeCheck,
     Car,
     CheckCircle2,
+    HardHat,
     History,
     Loader2,
     MessageSquarePlus,
@@ -17,7 +18,10 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { EntryItemRow } from '@/components/WorkItemsInput.vue';
+import WorkItemsInput from '@/components/WorkItemsInput.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import type { WorkItemInfo } from '@/lib/works';
 
 interface PropertyOption {
     number: string;
@@ -25,7 +29,14 @@ interface PropertyOption {
     type: string;
 }
 
-const props = defineProps<{ properties: PropertyOption[] }>();
+interface CurrentWork {
+    id: number;
+    title: string;
+    property_number: string;
+    property: string;
+}
+
+const props = defineProps<{ properties: PropertyOption[]; current_works: CurrentWork[] }>();
 
 const form = useForm({
     first_name: '',
@@ -36,7 +47,31 @@ const form = useForm({
     vehicle: 'ninguno',
     plate: '',
     observations: '',
+    work_worker_id: null as number | null,
+    // Proveedor: obra a la que entrega y su empresa
+    work_id: null as number | null,
+    supplier_company: '',
+    items: [] as EntryItemRow[],
 });
+
+const isSupplier = computed(() => form.type === 'proveedor');
+
+// El destino de una entrega es la casa de la obra
+watch(
+    () => form.work_id,
+    (id) => {
+        const work = props.current_works.find((w) => w.id === id);
+        if (work) form.apartment = work.property_number;
+    },
+);
+
+// Los ítems de trabajador y los de proveedor no se mezclan
+watch(
+    () => form.type,
+    (type, previous) => {
+        if (type === 'proveedor' || previous === 'proveedor') form.items = [];
+    },
+);
 
 interface AuthorizationInfo {
     type: string;
@@ -45,7 +80,23 @@ interface AuthorizationInfo {
     end_date: string | null;
 }
 
+interface WorkInfo {
+    worker_id: number;
+    worker_name: string;
+    work_id: number;
+    title: string;
+    company: string;
+    property_number: string;
+    property: string;
+    status: string;
+    is_current: boolean;
+    tools_inside: WorkItemInfo[];
+    reentry_items: WorkItemInfo[];
+}
+
 interface LookupResult {
+    work?: WorkInfo | null;
+    supplier?: { company: string | null; work_id: number | null } | null;
     first_name: string;
     last_name: string;
     apartment: string | null;
@@ -74,6 +125,8 @@ const searching = ref(false);
 const searchingPlate = ref(false);
 const lookupDone = ref(false);
 const knownInSystem = ref(false);
+// Obra del trabajador (si la cédula pertenece a un trabajador de obra)
+const workInfo = ref<WorkInfo | null>(null);
 // De dónde salieron los datos al buscar por placa (para avisar al guarda)
 const plateFill = ref<{ source: 'entry' | 'authorization'; date: string | null } | null>(null);
 // Evita que rellenar la cédula desde la placa dispare otra búsqueda que pise los datos
@@ -96,6 +149,22 @@ function applyLookupResult(data: LookupResult) {
     noAuthorization.value = !data.authorization && data.type === 'visitante';
     knownInSystem.value = data.known_in_system ?? false;
     lookupDone.value = true;
+    applyWork(data.work ?? null);
+
+    // Proveedor recurrente: se recuerda su empresa y la obra de la última entrega
+    if (data.supplier) {
+        form.supplier_company = data.supplier.company ?? form.supplier_company;
+        if (data.supplier.work_id && props.current_works.some((w) => w.id === data.supplier?.work_id)) {
+            form.work_id = data.supplier.work_id;
+        }
+    }
+}
+
+// Solo una obra aprobada y vigente permite registrar herramientas
+function applyWork(work: WorkInfo | null) {
+    if (workInfo.value?.worker_id !== work?.worker_id) form.items = [];
+    workInfo.value = work;
+    form.work_worker_id = work?.is_current ? work.worker_id : null;
 }
 
 async function lookup(cedula: string) {
@@ -160,6 +229,7 @@ watch(
         noAuthorization.value = false;
         lookupDone.value = false;
         knownInSystem.value = false;
+        applyWork(null);
         lookupTimeout.value = setTimeout(() => lookup(val), 500);
     },
 );
@@ -194,15 +264,23 @@ function submit() {
             ...data,
             apartment: data.apartment === ADMINISTRATION ? '' : data.apartment,
             to_administration: data.apartment === ADMINISTRATION,
+            // Solo se envían ítems de trabajadores o proveedores de una obra vigente; la vista previa no viaja
+            items: data.work_worker_id || (data.type === 'proveedor' && data.work_id)
+                ? data.items.map(({ item_id, name, serial, kind, quantity, photo }) => ({ item_id, name, serial, kind, quantity, photo }))
+                : [],
+            work_id: data.type === 'proveedor' ? data.work_id : null,
+            supplier_company: data.type === 'proveedor' ? data.supplier_company : null,
         }))
         .post('/vigilante/entries');
 }
 
+// En móvil se usan etiquetas cortas para que los 5 tipos quepan en una fila
 const typeOptions = [
-    { value: 'propietario', label: 'Propietario', color: 'blue' },
-    { value: 'residente', label: 'Residente', color: 'purple' },
-    { value: 'autorizado', label: 'Autorizado', color: 'green' },
-    { value: 'visitante', label: 'Visitante', color: 'amber' },
+    { value: 'propietario', label: 'Propietario', short: 'Propiet.', color: 'blue' },
+    { value: 'residente', label: 'Residente', short: 'Resid.', color: 'purple' },
+    { value: 'autorizado', label: 'Autorizado', short: 'Autoriz.', color: 'green' },
+    { value: 'visitante', label: 'Visitante', short: 'Visita', color: 'amber' },
+    { value: 'proveedor', label: 'Proveedor', short: 'Proveed.', color: 'orange' },
 ];
 
 const typeButtonClass = (value: string, color: string) => {
@@ -220,6 +298,9 @@ const typeButtonClass = (value: string, color: string) => {
         amber: active
             ? 'border-amber-400 bg-amber-50 text-amber-800 ring-2 ring-amber-300'
             : 'border-input hover:border-amber-300 hover:bg-amber-50/50',
+        orange: active
+            ? 'border-orange-400 bg-orange-50 text-orange-800 ring-2 ring-orange-300'
+            : 'border-input hover:border-orange-300 hover:bg-orange-50/50',
     };
     return map[color];
 };
@@ -233,12 +314,12 @@ function clearForm() {
     knownInSystem.value = false;
     plateFill.value = null;
     showObservations.value = false;
+    applyWork(null);
 }
 
-// Error devuelto por el servidor que no corresponde a un campo del formulario
-const activeEntryError = computed(
-    () => (form.errors as Record<string, string | undefined>).active_entry,
-);
+// Errores con claves que no son campos directos del formulario (active_entry, items.0.name…)
+const formErrors = computed(() => form.errors as Record<string, string | undefined>);
+const activeEntryError = computed(() => formErrors.value.active_entry);
 
 const propertyTypeLabel: Record<string, string> = {
     apartamento: 'Apartamento',
@@ -298,9 +379,24 @@ const typeShortLabel: Record<string, string> = {
 
             <!-- Estado de la persona: etiquetas de una línea en vez de cajas grandes -->
             <div
-                v-if="plateFill || (lookupDone && (knownInSystem || authorization || noAuthorization))"
+                v-if="workInfo || plateFill || (lookupDone && (knownInSystem || authorization || noAuthorization))"
                 class="flex flex-wrap gap-1.5 text-xs"
             >
+                <span
+                    v-if="workInfo"
+                    :class="[
+                        'inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 font-medium',
+                        workInfo.is_current ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800',
+                    ]"
+                >
+                    <HardHat class="h-3.5 w-3.5 shrink-0" />
+                    <span class="truncate">
+                        Obra {{ workInfo.property }} · {{ workInfo.title }}
+                        <template v-if="!workInfo.is_current">
+                            · {{ workInfo.status === 'pendiente' ? 'pendiente de aprobación' : workInfo.status === 'aprobada' ? 'fuera de fechas' : workInfo.status }}: no puede ingresar herramientas
+                        </template>
+                    </span>
+                </span>
                 <span
                     v-if="plateFill?.source === 'entry'"
                     class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800"
@@ -448,7 +544,7 @@ const typeShortLabel: Record<string, string> = {
                 <!-- Tipo de persona: 4 botones en una fila -->
                 <div class="col-span-2 grid gap-1 lg:col-span-4">
                     <Label class="text-xs">Tipo de persona *</Label>
-                    <div class="grid grid-cols-4 gap-1.5">
+                    <div class="grid grid-cols-5 gap-1">
                         <button
                             v-for="opt in typeOptions"
                             :key="opt.value"
@@ -459,10 +555,57 @@ const typeShortLabel: Record<string, string> = {
                                 typeButtonClass(opt.value, opt.color),
                             ]"
                         >
-                            {{ opt.label }}
+                            <span class="sm:hidden">{{ opt.short }}</span>
+                            <span class="hidden sm:inline">{{ opt.label }}</span>
                         </button>
                     </div>
                     <InputError :message="form.errors.type" class="text-xs" />
+                </div>
+
+                <!-- Proveedor (ferretería, depósito…): entrega material a una obra vigente -->
+                <div v-if="isSupplier" class="col-span-2 flex flex-col gap-2 lg:col-span-4">
+                    <p v-if="current_works.length === 0" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        No hay obras aprobadas y vigentes: no se puede registrar una entrega de material.
+                    </p>
+                    <div v-else class="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div class="grid content-start gap-1">
+                            <Label for="work_id" class="flex items-center gap-1 text-xs">
+                                <HardHat class="h-3.5 w-3.5 text-muted-foreground" /> Obra *
+                            </Label>
+                            <select
+                                id="work_id"
+                                v-model="form.work_id"
+                                class="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm"
+                            >
+                                <option :value="null" disabled>Obra...</option>
+                                <option v-for="w in current_works" :key="w.id" :value="w.id">{{ w.property }} · {{ w.title }}</option>
+                            </select>
+                            <InputError :message="formErrors.work_id" class="text-xs" />
+                        </div>
+                        <div class="grid content-start gap-1">
+                            <Label for="supplier_company" class="text-xs">Empresa *</Label>
+                            <Input id="supplier_company" v-model="form.supplier_company" placeholder="Ej: Ferretería El Tornillo" />
+                            <InputError :message="formErrors.supplier_company" class="text-xs" />
+                        </div>
+                    </div>
+                    <WorkItemsInput
+                        v-if="form.work_id"
+                        v-model="form.items"
+                        material-only
+                        :errors="formErrors"
+                    />
+                    <InputError :message="formErrors.items" class="text-xs" />
+                </div>
+
+                <!-- Trabajador de obra vigente: herramientas y materiales que ingresa -->
+                <div v-if="workInfo?.is_current && !isSupplier" class="col-span-2 lg:col-span-4">
+                    <WorkItemsInput
+                        v-model="form.items"
+                        :tools-inside="workInfo.tools_inside"
+                        :reentry-items="workInfo.reentry_items"
+                        :errors="formErrors"
+                    />
+                    <InputError :message="formErrors.work_worker_id ?? formErrors.items" class="text-xs" />
                 </div>
 
                 <!-- Observación (opcional, oculta tras un enlace) -->

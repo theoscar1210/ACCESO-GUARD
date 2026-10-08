@@ -42,6 +42,7 @@ const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     residente: 'default',
     autorizado: 'secondary',
     visitante: 'outline',
+    proveedor: 'secondary',
 };
 
 const typeLabel: Record<string, string> = {
@@ -49,6 +50,7 @@ const typeLabel: Record<string, string> = {
     residente: 'Residente',
     autorizado: 'Autorizado',
     visitante: 'Visitante',
+    proveedor: 'Proveedor',
 };
 
 const vehicleLabel: Record<string, string> = {
@@ -104,6 +106,7 @@ watch(
                         <option value="residente">Residente</option>
                         <option value="autorizado">Autorizado</option>
                         <option value="visitante">Visitante</option>
+                        <option value="proveedor">Proveedor</option>
                     </select>
                 </label>
                 <label class="grid gap-1 text-xs font-medium text-muted-foreground">

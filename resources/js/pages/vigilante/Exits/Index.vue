@@ -7,10 +7,14 @@ import {
     ChevronRight,
     LogOut,
     MessageSquare,
+    PackageCheck,
     Search,
+    Wrench,
     X,
 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import ExitToolsDialog from '@/components/ExitToolsDialog.vue';
+import type { MaterialExitTake, ToolMove } from '@/components/ExitToolsDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFitToViewport } from '@/composables/useFitToViewport';
@@ -26,6 +30,7 @@ interface Entry {
     plate: string | null;
     observations: string | null;
     entry_at: string;
+    work: { title: string; property: string; is_supplier: boolean; tools_inside: number; material_exits: number } | null;
 }
 
 const props = defineProps<{ inside: Entry[] }>();
@@ -183,22 +188,53 @@ function toggleAll() {
     selected.value = allSelected.value ? [] : filtered.value.map((e) => e.id);
 }
 
+// ── Herramientas de obra: si sale un trabajador con herramientas dentro, se decide qué sale ──
+const toolsDialogOpen = ref(false);
+
+const selectedWorkers = computed(() =>
+    props.inside
+        .filter((e) => selected.value.includes(e.id) && e.work)
+        .map((e) => ({
+            id: e.id,
+            full_name: e.full_name,
+            cedula: e.cedula,
+            pending: (e.work?.tools_inside ?? 0) + (e.work?.material_exits ?? 0),
+        })),
+);
+
 function submit() {
-    form.entry_ids = selected.value;
-    form.post('/vigilante/exits', {
-        preserveScroll: true,
-        onSuccess: () => {
-            selected.value = [];
-            search.value = '';
-            form.reset('observations');
-        },
-    });
+    // Herramientas propias dentro o material autorizado para la casa: hay que decidir antes
+    if (selectedWorkers.value.some((w) => w.pending > 0)) {
+        toolsDialogOpen.value = true;
+        return;
+    }
+    send([], []);
 }
+
+function send(toolMoves: ToolMove[], materialExits: MaterialExitTake[]) {
+    form
+        .transform((data) => ({ ...data, entry_ids: selected.value, tool_moves: toolMoves, material_exits: materialExits }))
+        .post('/vigilante/exits', {
+            preserveScroll: true,
+            onSuccess: () => {
+                toolsDialogOpen.value = false;
+                selected.value = [];
+                search.value = '';
+                form.reset('observations');
+            },
+        });
+}
+
+const toolMovesError = computed(() => {
+    const errors = form.errors as Record<string, string | undefined>;
+    return errors.tool_moves ?? errors.material_exits;
+});
 
 const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     propietario: 'default',
     autorizado: 'secondary',
     visitante: 'outline',
+    proveedor: 'secondary',
 };
 
 const typeLabel: Record<string, string> = {
@@ -206,6 +242,7 @@ const typeLabel: Record<string, string> = {
     residente: 'Residente',
     autorizado: 'Autorizado',
     visitante: 'Visitante',
+    proveedor: 'Proveedor',
 };
 
 const vehicleLabel: Record<string, string> = {
@@ -322,6 +359,20 @@ const vehicleLabel: Record<string, string> = {
                                 <span v-if="entry.observations" :title="entry.observations" class="shrink-0">
                                     <MessageSquare class="h-3.5 w-3.5 text-muted-foreground" />
                                 </span>
+                                <span
+                                    v-if="entry.work?.tools_inside"
+                                    :title="`Obra ${entry.work.property}: ${entry.work.tools_inside} herramienta(s) a su nombre`"
+                                    class="inline-flex shrink-0 items-center gap-0.5 rounded bg-amber-100 px-1 text-[10px] font-bold text-amber-800"
+                                >
+                                    <Wrench class="h-3 w-3" />{{ entry.work.tools_inside }}
+                                </span>
+                                <span
+                                    v-if="entry.work?.material_exits"
+                                    :title="`Hay ${entry.work.material_exits} salida(s) de material autorizada(s) en ${entry.work.property}`"
+                                    class="inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-100 px-1 text-[10px] font-bold text-emerald-800"
+                                >
+                                    <PackageCheck class="h-3 w-3" />{{ entry.work.material_exits }}
+                                </span>
                             </span>
                             <span class="block truncate text-xs text-muted-foreground">
                                 {{ entry.cedula }} · {{ entry.apartment }}
@@ -391,6 +442,8 @@ const vehicleLabel: Record<string, string> = {
                     </nav>
                 </div>
 
+                <p v-if="toolMovesError" class="truncate text-xs font-medium text-destructive">{{ toolMovesError }}</p>
+
                 <!-- Acción: siempre visible abajo, al alcance del pulgar -->
                 <div class="flex items-center gap-2 border-t pt-2">
                     <input
@@ -411,5 +464,12 @@ const vehicleLabel: Record<string, string> = {
                 </div>
             </template>
         </div>
+
+        <ExitToolsDialog
+            v-model:open="toolsDialogOpen"
+            :workers="selectedWorkers"
+            :processing="form.processing"
+            @confirm="send"
+        />
     </AppLayout>
 </template>

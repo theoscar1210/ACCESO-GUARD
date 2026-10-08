@@ -34,6 +34,7 @@ const typeBadge: Record<string, string> = {
     residente: 'bg-purple-100 text-purple-700',
     autorizado: 'bg-green-100 text-green-700',
     visitante: 'bg-amber-100 text-amber-700',
+    proveedor: 'bg-orange-100 text-orange-700',
     contratista: 'bg-orange-100 text-orange-700',
 };
 const typeLabel: Record<string, string> = {
@@ -41,6 +42,7 @@ const typeLabel: Record<string, string> = {
     residente: 'Residente',
     autorizado: 'Autorizado',
     visitante: 'Visitante',
+    proveedor: 'Proveedor',
     contratista: 'Contratista',
 };
 </script>

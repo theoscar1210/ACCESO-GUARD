@@ -8,7 +8,13 @@ use App\Models\Entry;
 use App\Models\FamilyMember;
 use App\Models\Property;
 use App\Models\User;
+use App\Models\Work;
+use App\Models\WorkItem;
+use App\Models\WorkWorker;
+use App\Support\WorkInventory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,7 +67,19 @@ class EntryController extends Controller
                 'type' => $p->type,
             ]);
 
-        return Inertia::render('vigilante/Entries/Create', compact('properties'));
+        // Obras vigentes: los proveedores entregan material a una de ellas
+        $currentWorks = Work::current()->with('property')->orderBy('title')->get()
+            ->map(fn (Work $w) => [
+                'id' => $w->id,
+                'title' => $w->title,
+                'property_number' => $w->property->number,
+                'property' => $w->property->full_label,
+            ]);
+
+        return Inertia::render('vigilante/Entries/Create', [
+            'properties' => $properties,
+            'current_works' => $currentWorks,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -83,7 +101,10 @@ class EntryController extends Controller
                 },
             ],
             'to_administration' => 'boolean',
-            'type' => 'required|in:propietario,residente,autorizado,visitante',
+            'type' => 'required|in:propietario,residente,autorizado,visitante,proveedor',
+            // Proveedor: obra a la que entrega y empresa (ferretería, depósito…)
+            'work_id' => 'nullable|required_if:type,proveedor|integer',
+            'supplier_company' => 'nullable|required_if:type,proveedor|string|max:150',
             'vehicle' => [
                 'required',
                 'in:automovil,camioneta,moto,bicicleta,ninguno',
@@ -92,11 +113,72 @@ class EntryController extends Controller
             ],
             'plate' => 'nullable|string|max:20',
             'observations' => 'nullable|string',
+            // Obras: trabajador y herramientas/materiales que ingresa
+            'work_worker_id' => 'nullable|integer|exists:work_workers,id',
+            'items' => 'nullable|array|max:40',
+            'items.*.item_id' => 'nullable|integer',
+            'items.*.name' => 'required_without:items.*.item_id|nullable|string|max:120',
+            'items.*.serial' => 'nullable|string|max:60',
+            // Al proveedor no se le pide el tipo: todo lo que entrega es material
+            'items.*.kind' => ['exclude_if:type,proveedor', 'required_without:items.*.item_id', 'nullable', Rule::in(WorkItem::KINDS)],
+            'items.*.quantity' => 'required|integer|min:1|max:9999',
+            'items.*.photo' => 'nullable|image|max:8192',
         ], [
             'apartment.required' => 'Selecciona el destino.',
             'vehicle.required' => 'Selecciona el tipo de vehículo.',
             'vehicle.not_in' => 'Selecciona el tipo de vehículo de la placa.',
+            'items.*.name.required_without' => 'Escribe qué herramienta o material ingresa.',
+            'items.*.photo.max' => 'La foto no puede pesar más de 8 MB.',
+            'work_id.required_if' => 'Selecciona la obra a la que entrega el material.',
+            'supplier_company.required_if' => 'Escribe la empresa del proveedor.',
         ]);
+
+        $worker = null;
+        $deliveryWork = null;
+
+        if ($data['type'] === 'proveedor') {
+            $deliveryWork = Work::current()->with('property')->find($data['work_id']);
+
+            if (! $deliveryWork) {
+                throw ValidationException::withMessages(['work_id' => 'La obra seleccionada no está aprobada o vigente.']);
+            }
+
+            // El proveedor solo entrega material; el destino es la casa de la obra
+            $data['apartment'] = $deliveryWork->property->number;
+            $data['work_worker_id'] = null;
+            $data['items'] = collect($data['items'] ?? [])
+                ->map(fn ($row) => [...$row, 'kind' => 'material', 'item_id' => null])
+                ->all();
+
+            foreach ($data['items'] as $i => $row) {
+                if (blank($row['name'] ?? null)) {
+                    throw ValidationException::withMessages(["items.{$i}.name" => 'Escribe qué material entrega.']);
+                }
+            }
+        } else {
+            $data['work_id'] = null;
+            $data['supplier_company'] = null;
+        }
+
+        // Trabajador de obra (la entrega de proveedor ya se validó arriba)
+        if (! $deliveryWork && ! empty($data['work_worker_id'])) {
+            $worker = WorkWorker::with('work')->find($data['work_worker_id']);
+
+            if (! $worker || $worker->cedula !== $data['cedula']) {
+                throw ValidationException::withMessages(['work_worker_id' => 'La cédula no corresponde al trabajador de la obra.']);
+            }
+
+            if (! $worker->work->isCurrent()) {
+                throw ValidationException::withMessages([
+                    'work_worker_id' => "La obra «{$worker->work->title}» no está aprobada o vigente: no se pueden registrar herramientas.",
+                ]);
+            }
+        } elseif (! $deliveryWork && ! empty($data['items'])) {
+            throw ValidationException::withMessages(['items' => 'Solo trabajadores o proveedores de una obra pueden ingresar herramientas o materiales.']);
+        }
+
+        $items = $data['items'] ?? [];
+        unset($data['items']);
 
         $data['to_administration'] = $request->boolean('to_administration');
         $data['plate'] = filled($data['plate'] ?? null) ? strtoupper(trim($data['plate'])) : null;
@@ -107,26 +189,38 @@ class EntryController extends Controller
             ->first();
 
         if ($activeEntry) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'active_entry' => 'Ya hay un ingreso activo para esta cédula. Registra la salida antes de permitir un nuevo ingreso.',
             ]);
         }
 
-        // Marcar autorización como usada si existe
-        Authorization::active()
-            ->where('cedula', $data['cedula'])
-            ->first()
-            ?->update(['status' => 'usado']);
+        DB::transaction(function () use ($data, $request, $worker, $deliveryWork, $items) {
+            // Marcar autorización como usada si existe
+            Authorization::active()
+                ->where('cedula', $data['cedula'])
+                ->first()
+                ?->update(['status' => 'usado']);
 
-        Entry::create([
-            ...$data,
-            'user_id' => $request->user()->id,
-            'registered_by' => $request->user()->username,
-            'entry_at' => now(),
-        ]);
+            $entry = Entry::create([
+                ...$data,
+                'user_id' => $request->user()->id,
+                'registered_by' => $request->user()->username,
+                'entry_at' => now(),
+            ]);
+
+            if ($worker && $items) {
+                WorkInventory::registerEntry($entry, $worker, $items, $request->user());
+            }
+
+            if ($deliveryWork && $items) {
+                WorkInventory::registerDelivery($entry, $deliveryWork, $items, $request->user());
+            }
+        });
+
+        $count = count($items);
 
         return redirect()->route('vigilante.entries.index')
-            ->with('success', 'Ingreso registrado correctamente.');
+            ->with('success', $count ? "Ingreso registrado con {$count} ítem(s) de obra." : 'Ingreso registrado correctamente.');
     }
 
     /**
@@ -207,8 +301,10 @@ class EntryController extends Controller
     {
         $user = User::where('cedula', $cedula)->first();
         $familyMember = $user ? null : FamilyMember::with('user')->where('cedula', $cedula)->first();
+        $worker = WorkInventory::workerFor($cedula);
+        $currentWorker = $worker?->work->isCurrent() ? $worker : null;
 
-        if (! $user && ! $familyMember && ! $authorization && ! $lastEntry) {
+        if (! $user && ! $familyMember && ! $authorization && ! $lastEntry && ! $worker) {
             return null;
         }
 
@@ -220,19 +316,26 @@ class EntryController extends Controller
                 'Residente' => 'residente',
                 default => null,
             },
-            $familyMember !== null, $authorization !== null => 'autorizado',
+            $familyMember !== null, $authorization !== null, $currentWorker !== null => 'autorizado',
             default => $lastEntry?->type,
         };
 
-        // Inmueble: el del usuario o su titular, el de quien autoriza, o el del ingreso anterior
+        // Inmueble: el del usuario o su titular, el de la obra vigente, el de quien autoriza, o el del ingreso anterior
         $apartment = $user?->property_number
             ?? $familyMember?->user->property_number
+            ?? $currentWorker?->work->property->number
             ?? $authorization?->owner?->property_number
             ?? $lastEntry?->apartment;
 
         return [
-            'first_name' => $registered?->first_name ?? $authorization?->first_name ?? $lastEntry?->first_name,
-            'last_name' => $registered?->last_name ?? $authorization?->last_name ?? $lastEntry?->last_name,
+            'work' => $worker ? WorkInventory::workInfo($worker) : null,
+            // Proveedor recurrente: su empresa y la obra de la última entrega si sigue vigente
+            'supplier' => $lastEntry?->type === 'proveedor' ? [
+                'company' => $lastEntry->supplier_company,
+                'work_id' => $lastEntry->work?->isCurrent() ? $lastEntry->work_id : null,
+            ] : null,
+            'first_name' => $registered?->first_name ?? $worker?->first_name ?? $authorization?->first_name ?? $lastEntry?->first_name,
+            'last_name' => $registered?->last_name ?? $worker?->last_name ?? $authorization?->last_name ?? $lastEntry?->last_name,
             'apartment' => $apartment,
             'type' => $type ?? 'visitante',
             'known_in_system' => $registered !== null,
