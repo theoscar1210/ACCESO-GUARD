@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
@@ -27,6 +28,7 @@ class UserController extends Controller
                 'phone' => $u->phone,
                 'role' => $u->getRoleNames()->first(),
                 'created_at' => $u->created_at->format('d/m/Y'),
+                'can_manage' => $this->canManage($u),
             ]);
 
         return Inertia::render('admin/Users/Index', compact('users'));
@@ -34,7 +36,7 @@ class UserController extends Controller
 
     public function create(): Response
     {
-        $roles = Role::pluck('name');
+        $roles = $this->assignableRoles();
 
         return Inertia::render('admin/Users/Create', compact('roles'));
     }
@@ -49,7 +51,7 @@ class UserController extends Controller
             'username' => 'required|string|max:50|unique:users',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|exists:roles,name',
+            'role' => ['required', Rule::in($this->assignableRoles())],
         ]);
 
         $user = User::create([
@@ -65,7 +67,9 @@ class UserController extends Controller
 
     public function edit(User $user): Response
     {
-        $roles = Role::pluck('name');
+        abort_unless($this->canManage($user), 403);
+
+        $roles = $this->assignableRoles();
 
         return Inertia::render('admin/Users/Edit', [
             'user' => [
@@ -84,6 +88,8 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        abort_unless($this->canManage($user), 403);
+
         $data = $request->validate([
             'first_name' => 'required|string|max:50',
             'last_name' => 'required|string|max:50',
@@ -92,7 +98,7 @@ class UserController extends Controller
             'username' => "required|string|max:50|unique:users,username,{$user->id}",
             'email' => "required|email|unique:users,email,{$user->id}",
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|exists:roles,name',
+            'role' => ['required', Rule::in($this->assignableRoles())],
         ]);
 
         $updateData = [
@@ -118,6 +124,8 @@ class UserController extends Controller
 
     public function destroy(User $user): RedirectResponse
     {
+        abort_unless($this->canManage($user), 403);
+
         if ($user->id === auth()->id()) {
             return back()->withErrors(['error' => 'No puedes eliminar tu propio usuario.']);
         }
@@ -125,5 +133,21 @@ class UserController extends Controller
         $user->delete();
 
         return back()->with('success', 'Usuario eliminado.');
+    }
+
+    /** Solo un superusuario puede crear o asignar el rol Superusuario */
+    private function assignableRoles(): array
+    {
+        $roles = Role::pluck('name')->all();
+
+        return auth()->user()->hasRole('Superusuario')
+            ? $roles
+            : array_values(array_diff($roles, ['Superusuario']));
+    }
+
+    /** Un administrador no puede editar ni eliminar a un superusuario */
+    private function canManage(User $target): bool
+    {
+        return auth()->user()->hasRole('Superusuario') || ! $target->hasRole('Superusuario');
     }
 }

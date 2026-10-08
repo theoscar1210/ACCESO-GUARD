@@ -16,6 +16,7 @@ interface User {
     phone: string;
     role: string;
     created_at: string;
+    can_manage: boolean;
 }
 
 const props = defineProps<{ users: User[] }>();
@@ -36,6 +37,7 @@ const filtered = () =>
     });
 
 const roleBadge: Record<string, string> = {
+    Superusuario: 'bg-slate-900 text-white',
     Administrador: 'bg-red-100 text-red-800',
     Vigilante: 'bg-blue-100 text-blue-800',
     Propietario: 'bg-green-100 text-green-800',
@@ -110,7 +112,7 @@ function confirmDelete() {
                             {{ u.role }}
                         </span>
                     </div>
-                    <div class="flex gap-2">
+                    <div v-if="u.can_manage" class="flex gap-2">
                         <Link :href="`/admin/users/${u.id}/edit`" class="flex-1">
                             <Button variant="outline" class="h-10 w-full">Editar</Button>
                         </Link>
@@ -186,7 +188,7 @@ function confirmDelete() {
                                 {{ u.created_at }}
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex gap-2">
+                                <div v-if="u.can_manage" class="flex gap-2">
                                     <Link :href="`/admin/users/${u.id}/edit`">
                                         <Button variant="outline" size="sm"
                                             >Editar</Button

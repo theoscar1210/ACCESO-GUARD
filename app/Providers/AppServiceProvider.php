@@ -6,6 +6,7 @@ use App\Http\Responses\LoginResponse;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
@@ -26,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // El superusuario tiene todos los permisos
+        Gate::before(fn ($user) => $user->hasRole('Superusuario') ? true : null);
     }
 
     /**

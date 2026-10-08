@@ -12,7 +12,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         return match (true) {
-            $user->hasRole('Administrador') => redirect()->route('admin.dashboard'),
+            $user->hasAnyRole(['Superusuario', 'Administrador']) => redirect()->route('admin.dashboard'),
             $user->hasRole('Vigilante') => redirect()->route('vigilante.dashboard'),
             $user->hasRole('Propietario') => redirect()->route('propietario.dashboard'),
             $user->hasRole('Residente') => redirect()->route('residente.dashboard'),
