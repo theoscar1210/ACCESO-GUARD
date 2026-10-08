@@ -30,7 +30,7 @@ class ReportController extends Controller
 
         $entries = $this->buildQuery($data)->get();
 
-        $title = 'Reporte de Ingresos — SafeResidence';
+        $title = 'Reporte de Ingresos — '.config('app.name');
         $filename = 'reporte_ingresos_'.now()->format('Ymd_His');
 
         if ($data['format'] === 'pdf') {

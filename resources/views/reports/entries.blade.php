@@ -40,8 +40,11 @@
 <body>
 
 <div class="header">
-    <h1>SafeResidence — Reporte de Ingresos</h1>
-    <p>Generado el {{ now()->format('d/m/Y H:i') }}</p>
+    <h1>{{ config('app.name') }} — Reporte de Ingresos</h1>
+    <p>
+        @if($condominium = \App\Support\CurrentCondominium::get()){{ $condominium->name }} · @endif
+        Generado el {{ now()->format('d/m/Y H:i') }}
+    </p>
 </div>
 
 {{-- Filtros aplicados --}}
@@ -121,7 +124,7 @@
 </table>
 
 <div class="footer">
-    SafeResidence · Reporte generado automáticamente · {{ now()->format('d/m/Y H:i:s') }}
+    {{ config('app.name') }} · Reporte generado automáticamente · {{ now()->format('d/m/Y H:i:s') }}
 </div>
 
 </body>
