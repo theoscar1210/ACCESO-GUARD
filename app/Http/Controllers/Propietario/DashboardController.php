@@ -33,7 +33,7 @@ class DashboardController extends Controller
                 'full_name' => $a->full_name,
                 'cedula' => $a->cedula,
                 'type' => $a->type,
-                'status' => $a->status,
+                'status' => $a->effective_status,
                 'start_date' => $a->start_date?->format('d/m/Y'),
                 'end_date' => $a->end_date?->format('d/m/Y'),
             ]);

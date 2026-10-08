@@ -23,7 +23,7 @@ class AuthorizationController extends Controller
                 'plate' => $a->plate,
                 'vehicle' => $a->vehicle,
                 'type' => $a->type,
-                'status' => $a->status,
+                'status' => $a->effective_status,
                 'start_date' => $a->start_date->format('d/m/Y'),
                 'end_date' => $a->end_date?->format('d/m/Y H:i'),
                 'observations' => $a->observations,
