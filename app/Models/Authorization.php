@@ -15,6 +15,7 @@ class Authorization extends Model
         'first_name',
         'last_name',
         'cedula',
+        'plate',
         'type',
         'status',
         'start_date',

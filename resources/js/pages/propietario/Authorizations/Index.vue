@@ -10,6 +10,7 @@ interface Authorization {
     id: number;
     full_name: string;
     cedula: string;
+    plate: string | null;
     type: string;
     status: string;
     start_date: string;
@@ -100,6 +101,10 @@ const typeLabel: Record<string, string> = {
                         </div>
                         <p class="text-sm text-muted-foreground">
                             CC {{ auth.cedula }}
+                            <span v-if="auth.plate">
+                                · Placa
+                                <span class="font-mono font-semibold tracking-wider">{{ auth.plate }}</span>
+                            </span>
                         </p>
                         <p class="text-sm text-muted-foreground">
                             Desde {{ auth.start_date }}

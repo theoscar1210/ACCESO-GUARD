@@ -35,7 +35,7 @@ class DashboardController extends Controller
             ->map(fn ($e) => [
                 'id' => $e->id,
                 'full_name' => $e->full_name,
-                'apartment' => $e->apartment,
+                'apartment' => $e->destination,
                 'type' => $e->type,
                 'entry_at' => $e->entry_at->format('H:i'),
                 'is_inside' => is_null($e->exit),

@@ -16,6 +16,14 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { Auth } from '@/types';
 
+interface PropertyOption {
+    number: string;
+    label: string;
+    type: string;
+}
+
+const props = defineProps<{ properties: PropertyOption[] }>();
+
 const { auth } = usePage<{ auth: Auth }>().props;
 
 const form = useForm({
@@ -31,6 +39,7 @@ const form = useForm({
 
 interface AuthorizationInfo {
     type: string;
+    plate: string | null;
     end_date: string | null;
 }
 
@@ -55,7 +64,10 @@ const knownInSystem = ref(false);
 function applyLookupResult(data: LookupResult) {
     form.first_name = data.first_name ?? form.first_name;
     form.last_name = data.last_name ?? form.last_name;
-    form.apartment = data.apartment ?? form.apartment;
+    // Solo se precarga si el inmueble sigue registrado (el selector no admite otros valores)
+    if (data.apartment && props.properties.some((p) => p.number === data.apartment)) {
+        form.apartment = data.apartment;
+    }
     form.type = data.type ?? form.type;
     authorization.value = data.authorization ?? null;
     noAuthorization.value = !data.authorization && data.type === 'visitante';
@@ -138,8 +150,17 @@ onMounted(() => {
     }
 });
 
+// Opción "Administración" del selector de destino
+const ADMINISTRATION = '__administracion__';
+
 function submit() {
-    form.post('/vigilante/entries');
+    form
+        .transform((data) => ({
+            ...data,
+            apartment: data.apartment === ADMINISTRATION ? '' : data.apartment,
+            to_administration: data.apartment === ADMINISTRATION,
+        }))
+        .post('/vigilante/entries');
 }
 
 const typeOptions = [
@@ -169,6 +190,26 @@ const typeButtonClass = (value: string, color: string) => {
 };
 
 const needsPlate = computed(() => form.vehicle !== 'ninguno');
+
+// Error devuelto por el servidor que no corresponde a un campo del formulario
+const activeEntryError = computed(
+    () => (form.errors as Record<string, string | undefined>).active_entry,
+);
+
+const propertyTypeLabel: Record<string, string> = {
+    apartamento: 'Apartamento',
+    casa: 'Casa',
+    local: 'Local',
+};
+
+// "Apartamento 101", pero "Casa-01" en vez de "Casa Casa-01"
+function propertyOptionLabel(p: PropertyOption): string {
+    const type = propertyTypeLabel[p.type] ?? p.type;
+
+    return p.label.toLowerCase().includes(type.toLowerCase())
+        ? p.label
+        : `${type} ${p.label}`;
+}
 </script>
 
 <template>
@@ -187,13 +228,13 @@ const needsPlate = computed(() => form.vehicle !== 'ninguno');
 
             <!-- Alerta: INGRESO ACTIVO (bloqueo prominente) -->
             <div
-                v-if="form.errors.active_entry"
+                v-if="activeEntryError"
                 class="mb-4 flex items-start gap-3 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-4 text-sm text-red-900"
             >
                 <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <div>
                     <p class="font-bold text-base">Ingreso duplicado</p>
-                    <p class="mt-0.5 text-red-700">{{ form.errors.active_entry }}</p>
+                    <p class="mt-0.5 text-red-700">{{ activeEntryError }}</p>
                 </div>
             </div>
 
@@ -237,6 +278,10 @@ const needsPlate = computed(() => form.vehicle !== 'ninguno');
                             <span v-else>
                                 &mdash; Sin fecha de vencimiento</span
                             >
+                        </p>
+                        <p v-if="authorization.plate" class="text-green-700">
+                            Vehículo autorizado:
+                            <span class="font-mono font-semibold tracking-wider">{{ authorization.plate }}</span>
                         </p>
                     </div>
                 </div>
@@ -329,14 +374,26 @@ const needsPlate = computed(() => form.vehicle !== 'ninguno');
                     </div>
                 </div>
 
-                <!-- Apartamento -->
+                <!-- Destino: casa, apartamento o administración -->
                 <div class="grid gap-1.5">
-                    <Label for="apartment">Apartamento destino *</Label>
-                    <Input
+                    <Label for="apartment">Destino *</Label>
+                    <select
                         id="apartment"
                         v-model="form.apartment"
-                        placeholder="Ej: 101, Torre A-302"
-                    />
+                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                        <option value="" disabled>Selecciona el destino...</option>
+                        <option :value="ADMINISTRATION">Administración</option>
+                        <optgroup v-if="properties.length" label="Casas y apartamentos">
+                            <option
+                                v-for="p in properties"
+                                :key="p.number"
+                                :value="p.number"
+                            >
+                                {{ propertyOptionLabel(p) }}
+                            </option>
+                        </optgroup>
+                    </select>
                     <InputError :message="form.errors.apartment" />
                 </div>
 
@@ -402,7 +459,7 @@ const needsPlate = computed(() => form.vehicle !== 'ninguno');
                             </span>
                         </div>
                         <p class="text-xs text-muted-foreground">
-                            Si la placa tiene ingresos previos, los datos del conductor se completarán automáticamente.
+                            Si la placa está en una autorización o tiene ingresos previos, los datos del conductor y el destino se completarán automáticamente.
                         </p>
                         <InputError :message="form.errors.plate" />
                     </div>

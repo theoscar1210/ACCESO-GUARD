@@ -9,6 +9,7 @@ interface Authorization {
     id: number;
     full_name: string;
     cedula: string;
+    plate: string | null;
     type: string;
     status: string;
     start_date: string;
@@ -97,7 +98,10 @@ const typeClass: Record<string, string> = {
                         <tbody>
                             <tr v-for="a in authorizations" :key="a.id">
                                 <td class="px-5 py-3 font-medium">{{ a.full_name }}</td>
-                                <td class="px-5 py-3 font-mono text-xs text-muted-foreground">{{ a.cedula }}</td>
+                                <td class="px-5 py-3 font-mono text-xs text-muted-foreground">
+                                    {{ a.cedula }}
+                                    <span v-if="a.plate" class="mt-0.5 block font-semibold tracking-wider text-foreground">🚗 {{ a.plate }}</span>
+                                </td>
                                 <td class="px-5 py-3">
                                     <span :class="['rounded-full px-2.5 py-0.5 text-xs font-semibold', typeClass[a.type] ?? 'bg-muted text-muted-foreground']">
                                         {{ typeLabel[a.type] ?? a.type }}

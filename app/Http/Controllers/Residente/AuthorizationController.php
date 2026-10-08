@@ -20,6 +20,7 @@ class AuthorizationController extends Controller
                 'id'           => $a->id,
                 'full_name'    => $a->full_name,
                 'cedula'       => $a->cedula,
+                'plate'        => $a->plate,
                 'type'         => $a->type,
                 'status'       => $a->status,
                 'start_date'   => $a->start_date->format('d/m/Y'),
@@ -41,6 +42,7 @@ class AuthorizationController extends Controller
             'first_name'   => 'required|string|max:100',
             'last_name'    => 'required|string|max:100',
             'cedula'       => 'required|string|max:20',
+            'plate'        => 'nullable|string|max:20',
             'type'         => 'required|in:visitante,autorizado',
             'start_date'   => 'required|date|after_or_equal:today',
             'end_date'     => 'nullable|date|after:start_date',
@@ -49,6 +51,7 @@ class AuthorizationController extends Controller
 
         Authorization::create([
             ...$data,
+            'plate'   => filled($data['plate'] ?? null) ? strtoupper(trim($data['plate'])) : null,
             'user_id' => $request->user()->id,
             'status'  => 'activo',
         ]);

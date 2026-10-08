@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { X } from 'lucide-vue-next';
+import { Car, Home, X } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,11 @@ interface Authorization {
     id: number;
     full_name: string;
     cedula: string;
+    plate: string | null;
     type: string;
     end_date: string | null;
     owner: string;
+    property: string | null;
     observations: string | null;
 }
 
@@ -20,13 +22,22 @@ const props = defineProps<{ authorizations: Authorization[] }>();
 
 const search = ref('');
 
-const filtered = computed(() =>
-    props.authorizations.filter(
+// Placas sin guiones ni espacios para que "abc-123" encuentre "ABC123"
+const normalizePlate = (value: string) =>
+    value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+const filtered = computed(() => {
+    const term = search.value.trim().toLowerCase();
+    const plate = normalizePlate(search.value);
+
+    return props.authorizations.filter(
         (a) =>
-            a.full_name.toLowerCase().includes(search.value.toLowerCase()) ||
-            a.cedula.includes(search.value),
-    ),
-);
+            a.full_name.toLowerCase().includes(term) ||
+            a.cedula.includes(term) ||
+            (a.property ?? '').toLowerCase().includes(term) ||
+            (plate !== '' && !!a.plate && normalizePlate(a.plate).includes(plate)),
+    );
+});
 
 const typeVariant: Record<string, 'default' | 'secondary'> = {
     visitante: 'secondary',
@@ -58,7 +69,7 @@ const typeLabel: Record<string, string> = {
                 <input
                     v-model="search"
                     type="text"
-                    placeholder="Buscar por nombre o cédula..."
+                    placeholder="Buscar por nombre, cédula, inmueble o placa..."
                     :class="['flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground', search ? 'pr-8' : '']"
                 />
                 <button
@@ -96,8 +107,21 @@ const typeLabel: Record<string, string> = {
                         <p class="text-sm text-muted-foreground">
                             CC {{ auth.cedula }}
                         </p>
+                        <div class="flex flex-wrap items-center gap-2 text-sm">
+                            <span class="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 font-medium">
+                                <Home class="h-3.5 w-3.5 text-muted-foreground" />
+                                {{ auth.property ?? 'Sin inmueble asignado' }}
+                            </span>
+                            <span
+                                v-if="auth.plate"
+                                class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono font-semibold tracking-wider"
+                            >
+                                <Car class="h-3.5 w-3.5 text-muted-foreground" />
+                                {{ auth.plate }}
+                            </span>
+                        </div>
                         <p class="text-sm text-muted-foreground">
-                            Propietario: {{ auth.owner }}
+                            Autoriza: {{ auth.owner }}
                         </p>
                         <p
                             v-if="auth.end_date"

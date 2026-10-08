@@ -17,6 +17,7 @@ class Entry extends Model
         'last_name',
         'cedula',
         'apartment',
+        'to_administration',
         'type',
         'vehicle',
         'plate',
@@ -29,7 +30,16 @@ class Entry extends Model
     {
         return [
             'entry_at' => 'datetime',
+            'to_administration' => 'boolean',
         ];
+    }
+
+    /** Destino legible: "101", "Administración" o "101 · Administración" */
+    public function getDestinationAttribute(): string
+    {
+        return collect([$this->apartment, $this->to_administration ? 'Administración' : null])
+            ->filter()
+            ->implode(' · ');
     }
 
     public function registeredBy(): BelongsTo

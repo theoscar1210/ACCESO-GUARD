@@ -16,7 +16,14 @@ class EntryController extends Controller
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('entry_at', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('entry_at', '<=', $request->date_to))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
-            ->when($request->filled('apartment'), fn ($q) => $q->where('apartment', 'like', "%{$request->apartment}%"))
+            ->when($request->filled('apartment'), fn ($q) => $q->where(function ($q) use ($request) {
+                $q->where('apartment', 'like', "%{$request->apartment}%");
+
+                // "admin", "administración"... también busca los ingresos a la administración
+                if (str_contains('administracion administración', mb_strtolower($request->apartment))) {
+                    $q->orWhere('to_administration', true);
+                }
+            }))
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
                 $q->where('first_name', 'like', "%{$request->search}%")
                     ->orWhere('last_name', 'like', "%{$request->search}%")
@@ -28,7 +35,7 @@ class EntryController extends Controller
             'id' => $e->id,
             'full_name' => $e->full_name,
             'cedula' => $e->cedula,
-            'apartment' => $e->apartment,
+            'apartment' => $e->destination,
             'type' => $e->type,
             'vehicle' => $e->vehicle,
             'plate' => $e->plate,

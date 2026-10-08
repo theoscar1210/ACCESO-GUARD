@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Authorizations;
 
+use App\Models\Property;
+use App\Models\PropertyRental;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -57,6 +59,53 @@ class AuthorizationTest extends TestCase
             'cedula' => '87654321',
             'status' => 'activo',
         ]);
+    }
+
+    #[DataProvider('roles')]
+    public function test_user_can_authorize_with_vehicle_plate(string $role, string $prefix): void
+    {
+        $user = $this->userWithRole($role);
+
+        $this->actingAs($user)
+            ->post("/{$prefix}/authorizations", $this->payload(['plate' => ' abc-123 ']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('authorizations', ['user_id' => $user->id, 'plate' => 'ABC-123']);
+
+        $this->actingAs($user)->get("/{$prefix}/authorizations")
+            ->assertInertia(fn (Assert $page) => $page->where('authorizations.0.plate', 'ABC-123'));
+    }
+
+    #[DataProvider('roles')]
+    public function test_plate_is_optional_and_limited(string $role, string $prefix): void
+    {
+        $user = $this->userWithRole($role);
+
+        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => '']))
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('authorizations', ['user_id' => $user->id, 'plate' => null]);
+
+        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => str_repeat('A', 21)]))
+            ->assertSessionHasErrors('plate');
+    }
+
+    public function test_vigilante_sees_property_and_plate_of_authorization(): void
+    {
+        $owner = $this->propietarioWithProperty('101');
+        $this->makeAuthorization($owner, ['plate' => 'XYZ789']);
+
+        $tenant = $this->residente();
+        $rented = Property::create(['number' => '12', 'block' => 'B', 'type' => 'casa']);
+        PropertyRental::create(['property_id' => $rented->id, 'user_id' => $tenant->id, 'start_date' => today(), 'is_active' => true]);
+        $this->makeAuthorization($tenant, ['end_date' => now()->addDays(3)]);
+
+        $this->actingAs($this->vigilante())->get('/vigilante/authorizations')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('authorizations', 2)
+                ->where('authorizations.0.property', '101')
+                ->where('authorizations.0.plate', 'XYZ789')
+                ->where('authorizations.1.property', 'B - 12')
+                ->where('authorizations.1.plate', null));
     }
 
     #[DataProvider('roles')]

@@ -22,7 +22,7 @@ class ExitController extends Controller
                 'id'           => $e->id,
                 'full_name'    => $e->full_name,
                 'cedula'       => $e->cedula,
-                'apartment'    => $e->apartment,
+                'apartment'    => $e->destination,
                 'type'         => $e->type,
                 'vehicle'      => $e->vehicle,
                 'plate'        => $e->plate,

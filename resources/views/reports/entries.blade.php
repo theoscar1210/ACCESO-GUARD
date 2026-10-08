@@ -81,7 +81,7 @@
             <th>#</th>
             <th>Nombre</th>
             <th>Cédula</th>
-            <th>Apartamento</th>
+            <th>Destino</th>
             <th>Tipo</th>
             <th>Vehículo</th>
             <th>Ingreso</th>
@@ -95,7 +95,7 @@
             <td>{{ $i + 1 }}</td>
             <td><strong>{{ $entry->first_name }} {{ $entry->last_name }}</strong></td>
             <td>{{ $entry->cedula }}</td>
-            <td>{{ $entry->apartment }}</td>
+            <td>{{ $entry->destination }}</td>
             <td>
                 <span class="badge badge-{{ $entry->type }}">{{ ucfirst($entry->type) }}</span>
             </td>

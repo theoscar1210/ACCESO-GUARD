@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Car, X } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -28,14 +29,46 @@ const form = useForm({
 
 const search = ref('');
 
-const filtered = computed(() =>
-    props.inside.filter(
+// Compara placas ignorando mayúsculas, guiones y espacios ("abc-123" = "ABC123")
+const normalizePlate = (value: string) =>
+    value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+const plateQuery = computed(() => normalizePlate(search.value));
+
+const filtered = computed(() => {
+    const term = search.value.trim().toLowerCase();
+
+    return props.inside.filter(
         (e) =>
-            e.full_name.toLowerCase().includes(search.value.toLowerCase()) ||
-            e.cedula.includes(search.value) ||
-            e.apartment.includes(search.value),
-    ),
+            e.full_name.toLowerCase().includes(term) ||
+            e.cedula.includes(term) ||
+            e.apartment.toLowerCase().includes(term) ||
+            (plateQuery.value !== '' &&
+                !!e.plate &&
+                normalizePlate(e.plate).includes(plateQuery.value)),
+    );
+});
+
+// Ocupantes del vehículo cuya placa coincide exactamente con lo buscado
+const plateMatches = computed(() =>
+    plateQuery.value.length >= 3
+        ? props.inside.filter(
+              (e) => e.plate && normalizePlate(e.plate) === plateQuery.value,
+          )
+        : [],
 );
+
+// Al escribir una placa completa se seleccionan todos sus ocupantes para la salida
+watch(plateMatches, (matches) => {
+    if (matches.length > 0) {
+        selected.value = matches.map((e) => e.id);
+    }
+});
+
+function clearSearch() {
+    search.value = '';
+    selected.value = [];
+}
 
 function toggle(id: number) {
     const idx = selected.value.indexOf(id);
@@ -56,6 +89,7 @@ function submit() {
     form.post('/vigilante/exits', {
         onSuccess: () => {
             selected.value = [];
+            search.value = '';
         },
     });
 }
@@ -117,14 +151,26 @@ const vehicleLabel: Record<string, string> = {
             </div>
 
             <template v-else>
-                <!-- Búsqueda y seleccionar todos -->
+                <!-- Búsqueda (nombre, cédula, destino o placa) y seleccionar todos -->
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                        v-model="search"
-                        type="text"
-                        placeholder="Buscar por nombre, cédula o apartamento..."
-                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground sm:max-w-sm"
-                    />
+                    <div class="relative w-full sm:max-w-sm">
+                        <input
+                            v-model="search"
+                            type="text"
+                            autocomplete="off"
+                            placeholder="Buscar por nombre, cédula, destino o placa..."
+                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-9 text-sm shadow-sm placeholder:text-muted-foreground"
+                        />
+                        <button
+                            v-if="search"
+                            type="button"
+                            @click="clearSearch"
+                            class="absolute top-2 right-2.5 text-muted-foreground hover:text-foreground"
+                            aria-label="Limpiar búsqueda"
+                        >
+                            <X class="h-4 w-4" />
+                        </button>
+                    </div>
                     <div class="flex gap-3">
                     <button
                         @click="toggleAll"
@@ -143,6 +189,29 @@ const vehicleLabel: Record<string, string> = {
                     >Limpiar selección</button>
                     </div>
                 </div>
+
+                <!-- Placa encontrada: ocupantes ya seleccionados -->
+                <div
+                    v-if="plateMatches.length > 0"
+                    class="flex max-w-lg flex-col gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 sm:flex-row sm:items-center sm:justify-between"
+                >
+                    <span class="flex items-center gap-2">
+                        <Car class="h-4 w-4 shrink-0" />
+                        <span>
+                            Vehículo <span class="font-mono font-bold">{{ plateMatches[0].plate }}</span>:
+                            {{ plateMatches.length }} ocupante(s) seleccionado(s)
+                        </span>
+                    </span>
+                    <Button size="sm" :disabled="form.processing" @click="submit">
+                        Registrar salida
+                    </Button>
+                </div>
+                <p
+                    v-else-if="search && filtered.length === 0"
+                    class="text-sm text-muted-foreground"
+                >
+                    Nadie dentro coincide con «{{ search }}».
+                </p>
 
                 <!-- Lista de personas dentro -->
                 <div class="grid gap-2">
@@ -187,7 +256,7 @@ const vehicleLabel: Record<string, string> = {
                             <div class="min-w-0">
                                 <p class="font-semibold">{{ entry.full_name }}</p>
                                 <p class="text-sm text-muted-foreground">
-                                    CC {{ entry.cedula }} · Inmueble {{ entry.apartment }}
+                                    CC {{ entry.cedula }} · Destino {{ entry.apartment }}
                                 </p>
                                 <p v-if="entry.plate || (entry.vehicle && entry.vehicle !== 'ninguno')" class="text-xs text-muted-foreground">
                                     <span v-if="entry.vehicle && entry.vehicle !== 'ninguno'">

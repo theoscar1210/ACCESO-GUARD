@@ -30,7 +30,7 @@ const breadcrumbItems: BreadcrumbItem[] = [
 ];
 
 const page = usePage();
-const user = computed(() => page.props.auth.user as any);
+const user = computed(() => page.props.auth.user);
 
 // Avatar upload
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -131,18 +131,33 @@ const avatarInitials = computed(() => {
                     class="space-y-6"
                     v-slot="{ errors, processing, recentlySuccessful }"
                 >
-                    <div class="grid gap-2">
-                        <Label for="name">Nombre</Label>
-                        <Input
-                            id="name"
-                            class="mt-1 block w-full"
-                            name="name"
-                            :default-value="user.name"
-                            required
-                            autocomplete="name"
-                            placeholder="Nombre completo"
-                        />
-                        <InputError class="mt-2" :message="errors.name" />
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Label for="first_name">Nombres</Label>
+                            <Input
+                                id="first_name"
+                                class="mt-1 block w-full"
+                                name="first_name"
+                                :default-value="user.first_name"
+                                required
+                                autocomplete="given-name"
+                                placeholder="Nombres"
+                            />
+                            <InputError class="mt-2" :message="errors.first_name" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="last_name">Apellidos</Label>
+                            <Input
+                                id="last_name"
+                                class="mt-1 block w-full"
+                                name="last_name"
+                                :default-value="user.last_name"
+                                required
+                                autocomplete="family-name"
+                                placeholder="Apellidos"
+                            />
+                            <InputError class="mt-2" :message="errors.last_name" />
+                        </div>
                     </div>
 
                     <div class="grid gap-2">

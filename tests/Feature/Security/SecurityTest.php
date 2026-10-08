@@ -145,7 +145,7 @@ class SecurityTest extends TestCase
         $vig->forceFill(['condominium_id' => $condo->id])->save();
 
         $this->actingAs($vig)->post('/vigilante/entries', [
-            'first_name' => 'X', 'last_name' => 'Y', 'cedula' => '1010', 'apartment' => '1',
+            'first_name' => 'X', 'last_name' => 'Y', 'cedula' => '1010', 'to_administration' => true,
             'type' => 'visitante', 'vehicle' => 'ninguno',
         ]);
 

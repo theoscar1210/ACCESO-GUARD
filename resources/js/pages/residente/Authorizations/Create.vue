@@ -10,6 +10,7 @@ const form = useForm({
     first_name:   '',
     last_name:    '',
     cedula:       '',
+    plate:        '',
     type:         'visitante',
     start_date:   new Date().toISOString().split('T')[0],
     end_date:     '',
@@ -66,6 +67,19 @@ function submit() {
                         </select>
                         <InputError :message="form.errors.type" />
                     </div>
+                </div>
+
+                <!-- Placa del vehículo -->
+                <div class="grid gap-1.5">
+                    <Label for="plate">
+                        Placa del vehículo
+                        <span class="text-muted-foreground">(opcional)</span>
+                    </Label>
+                    <Input id="plate" v-model="form.plate" placeholder="Ej: ABC-123" maxlength="20"
+                        class="font-mono tracking-widest uppercase placeholder:normal-case placeholder:tracking-normal"
+                        @input="form.plate = form.plate.toUpperCase()" />
+                    <InputError :message="form.errors.plate" />
+                    <p class="text-xs text-muted-foreground">Déjalo vacío si la persona llega a pie.</p>
                 </div>
 
                 <!-- Fechas -->

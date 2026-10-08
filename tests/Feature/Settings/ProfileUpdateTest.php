@@ -28,7 +28,8 @@ class ProfileUpdateTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->patch(route('profile.update'), [
-                'name' => $user->first_name.' '.$user->last_name,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
                 'email' => 'nuevo@example.com',
             ]);
 
@@ -42,6 +43,33 @@ class ProfileUpdateTest extends TestCase
         $this->assertNull($user->email_verified_at);
     }
 
+    public function test_profile_name_can_be_updated()
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), [
+                'first_name' => 'Nuevo',
+                'last_name' => 'Apellido',
+                'email' => $user->email,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $user->refresh();
+        $this->assertSame('Nuevo', $user->first_name);
+        $this->assertSame('Apellido', $user->last_name);
+        $this->assertSame('Nuevo Apellido', $user->name);
+    }
+
+    public function test_profile_name_is_required()
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->patch(route('profile.update'), ['first_name' => '', 'last_name' => '', 'email' => $user->email])
+            ->assertSessionHasErrors(['first_name', 'last_name']);
+    }
+
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged()
     {
         $user = User::factory()->create();
@@ -49,7 +77,8 @@ class ProfileUpdateTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->patch(route('profile.update'), [
-                'name' => $user->first_name.' '.$user->last_name,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
                 'email' => $user->email,
             ]);
 

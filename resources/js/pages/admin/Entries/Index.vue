@@ -123,7 +123,7 @@ const hasFilters = () =>
                     <!-- Apartamento -->
                     <Input
                         v-model="localFilters.apartment"
-                        placeholder="Apartamento..."
+                        placeholder="Destino (inmueble o administración)..."
                     />
 
                     <!-- Tipo -->

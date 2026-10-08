@@ -4,6 +4,8 @@ namespace Tests\Feature\Vigilante;
 
 use App\Models\Entry;
 use App\Models\FamilyMember;
+use App\Models\Property;
+use App\Models\PropertyRental;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Feature\Concerns\CreatesUsersWithRoles;
@@ -17,6 +19,7 @@ class EntryExitFlowTest extends TestCase
     {
         parent::setUp();
         $this->seedRoles();
+        Property::create(['number' => '101', 'type' => 'apartamento']);
     }
 
     private function validEntry(array $overrides = []): array
@@ -48,6 +51,102 @@ class EntryExitFlowTest extends TestCase
             'user_id' => $vig->id,
             'registered_by' => $vig->username,
         ]);
+    }
+
+    // ── Destino: inmueble y/o administración ────────────────────────────────
+
+    public function test_create_page_lists_registered_properties(): void
+    {
+        Property::create(['number' => '12', 'block' => 'B', 'type' => 'casa']);
+
+        $this->actingAs($this->vigilante())->get('/vigilante/entries/create')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('vigilante/Entries/Create')
+                ->has('properties', 2)
+                ->where('properties.0.label', '101')
+                ->where('properties.1.label', 'B - 12')
+                ->where('properties.1.type', 'casa'));
+    }
+
+    public function test_entry_can_go_only_to_administration(): void
+    {
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['apartment' => '', 'to_administration' => true]))
+            ->assertSessionHasNoErrors();
+
+        $entry = Entry::firstOrFail();
+        $this->assertNull($entry->apartment);
+        $this->assertTrue($entry->to_administration);
+        $this->assertSame('Administración', $entry->destination);
+    }
+
+    public function test_entry_can_go_to_property_and_administration(): void
+    {
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['to_administration' => true]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('101 · Administración', Entry::firstOrFail()->destination);
+    }
+
+    public function test_entry_requires_a_destination(): void
+    {
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['apartment' => '', 'to_administration' => false]))
+            ->assertSessionHasErrors('apartment');
+
+        $this->assertDatabaseCount('entries', 0);
+    }
+
+    public function test_entry_destination_must_be_a_registered_property(): void
+    {
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['apartment' => '999']))
+            ->assertSessionHasErrors('apartment');
+    }
+
+    public function test_destination_is_shown_in_exits_list(): void
+    {
+        $vig = $this->vigilante();
+        $this->makeEntry($vig, ['apartment' => null, 'to_administration' => true]);
+
+        $this->actingAs($vig)->get('/vigilante/exits')
+            ->assertInertia(fn (Assert $page) => $page->where('inside.0.apartment', 'Administración'));
+    }
+
+    public function test_plate_is_stored_uppercase(): void
+    {
+        $this->actingAs($this->vigilante())->post('/vigilante/entries', $this->validEntry(['plate' => ' abc123 ']));
+
+        $this->assertDatabaseHas('entries', ['plate' => 'ABC123']);
+    }
+
+    public function test_exits_list_includes_plate_for_plate_search(): void
+    {
+        $vig = $this->vigilante();
+        $this->makeEntry($vig, ['plate' => 'XYZ789', 'vehicle' => 'automovil']);
+        $this->makeEntry($vig, ['plate' => 'XYZ789', 'vehicle' => 'automovil']);
+
+        $this->actingAs($vig)->get('/vigilante/exits')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('vigilante/Exits/Index')
+                ->has('inside', 2)
+                ->where('inside.0.plate', 'XYZ789')
+                ->where('inside.1.plate', 'XYZ789'));
+    }
+
+    public function test_all_occupants_of_a_vehicle_can_exit_together(): void
+    {
+        $vig = $this->vigilante();
+        $driver = $this->makeEntry($vig, ['plate' => 'XYZ789', 'vehicle' => 'automovil']);
+        $passenger = $this->makeEntry($vig, ['plate' => 'XYZ789', 'vehicle' => 'automovil']);
+        $other = $this->makeEntry($vig, ['plate' => 'OTR111', 'vehicle' => 'moto']);
+
+        $this->actingAs($vig)
+            ->post('/vigilante/exits', ['entry_ids' => [$driver->id, $passenger->id]])
+            ->assertSessionHas('success', '2 salidas registradas.');
+
+        $this->assertSame([$other->id], Entry::active()->pluck('id')->all());
     }
 
     public function test_entry_requires_valid_fields(): void
@@ -192,6 +291,65 @@ class EntryExitFlowTest extends TestCase
         $this->actingAs($vig)
             ->getJson('/vigilante/entries/lookup-plate?plate=xyz789')
             ->assertJson(['cedula' => '777', 'first_name' => 'Pedro', 'apartment' => '303']);
+    }
+
+    public function test_lookup_by_plate_finds_authorization_with_person_and_property(): void
+    {
+        $owner = $this->propietarioWithProperty('A-7');
+        $this->makeAuthorization($owner, [
+            'first_name' => 'Rosa', 'last_name' => 'Mejía', 'cedula' => '4455', 'plate' => 'KLM-456',
+        ]);
+
+        // Sin guiones, en minúsculas y sin ingresos previos de esa placa
+        $this->actingAs($this->vigilante())
+            ->getJson('/vigilante/entries/lookup-plate?plate=klm456')
+            ->assertOk()
+            ->assertJson([
+                'cedula' => '4455',
+                'first_name' => 'Rosa',
+                'last_name' => 'Mejía',
+                'apartment' => 'A-7',
+                'type' => 'autorizado',
+                'authorization' => ['plate' => 'KLM-456'],
+            ]);
+    }
+
+    public function test_lookup_by_plate_uses_property_of_authorizing_tenant(): void
+    {
+        $tenant = $this->residente();
+        $property = Property::create(['number' => '505', 'type' => 'apartamento']);
+        PropertyRental::create(['property_id' => $property->id, 'user_id' => $tenant->id, 'start_date' => today(), 'is_active' => true]);
+        $this->makeAuthorization($tenant, ['cedula' => '6677', 'plate' => 'RES111']);
+
+        $this->actingAs($this->vigilante())
+            ->getJson('/vigilante/entries/lookup-plate?plate=RES-111')
+            ->assertJson(['cedula' => '6677', 'apartment' => '505']);
+    }
+
+    public function test_lookup_by_plate_ignores_used_or_expired_authorizations(): void
+    {
+        $owner = $this->propietarioWithProperty('A-8');
+        $this->makeAuthorization($owner, ['plate' => 'OLD111', 'status' => 'usado']);
+        $this->makeAuthorization($owner, ['plate' => 'OLD222', 'start_date' => today()->subDays(5), 'end_date' => now()->subDay()]);
+
+        $vig = $this->vigilante();
+        $this->actingAs($vig)->getJson('/vigilante/entries/lookup-plate?plate=OLD111')->assertExactJson([]);
+        $this->actingAs($vig)->getJson('/vigilante/entries/lookup-plate?plate=OLD222')->assertExactJson([]);
+    }
+
+    public function test_lookup_by_cedula_fills_property_from_authorization(): void
+    {
+        $owner = $this->propietarioWithProperty('C-3');
+        $this->makeAuthorization($owner, ['first_name' => 'Iván', 'cedula' => '8899', 'plate' => 'IVN900']);
+
+        $this->actingAs($this->vigilante())
+            ->getJson('/vigilante/entries/lookup?cedula=8899')
+            ->assertJson([
+                'first_name' => 'Iván',
+                'apartment' => 'C-3',
+                'type' => 'autorizado',
+                'authorization' => ['plate' => 'IVN900'],
+            ]);
     }
 
     public function test_vigilante_sees_only_active_authorizations(): void
