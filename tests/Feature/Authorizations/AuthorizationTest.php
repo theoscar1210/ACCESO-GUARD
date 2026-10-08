@@ -67,13 +67,29 @@ class AuthorizationTest extends TestCase
         $user = $this->userWithRole($role);
 
         $this->actingAs($user)
-            ->post("/{$prefix}/authorizations", $this->payload(['plate' => ' abc-123 ']))
+            ->post("/{$prefix}/authorizations", $this->payload(['plate' => ' abc-123 ', 'vehicle' => 'moto']))
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('authorizations', ['user_id' => $user->id, 'plate' => 'ABC-123']);
+        $this->assertDatabaseHas('authorizations', ['user_id' => $user->id, 'plate' => 'ABC-123', 'vehicle' => 'moto']);
 
         $this->actingAs($user)->get("/{$prefix}/authorizations")
-            ->assertInertia(fn (Assert $page) => $page->where('authorizations.0.plate', 'ABC-123'));
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('authorizations.0.plate', 'ABC-123')
+                ->where('authorizations.0.vehicle', 'moto'));
+    }
+
+    #[DataProvider('roles')]
+    public function test_plate_requires_a_valid_vehicle_type(string $role, string $prefix): void
+    {
+        $user = $this->userWithRole($role);
+
+        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => 'ABC123']))
+            ->assertSessionHasErrors('vehicle');
+
+        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => 'ABC123', 'vehicle' => 'avion']))
+            ->assertSessionHasErrors('vehicle');
+
+        $this->assertDatabaseCount('authorizations', 0);
     }
 
     #[DataProvider('roles')]
@@ -85,7 +101,7 @@ class AuthorizationTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('authorizations', ['user_id' => $user->id, 'plate' => null]);
 
-        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => str_repeat('A', 21)]))
+        $this->actingAs($user)->post("/{$prefix}/authorizations", $this->payload(['plate' => str_repeat('A', 21), 'vehicle' => 'automovil']))
             ->assertSessionHasErrors('plate');
     }
 

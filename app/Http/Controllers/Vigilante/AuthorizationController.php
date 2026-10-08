@@ -20,6 +20,7 @@ class AuthorizationController extends Controller
                 'full_name' => $a->full_name,
                 'cedula' => $a->cedula,
                 'plate' => $a->plate,
+                'vehicle' => $a->vehicle,
                 'type' => $a->type,
                 'end_date' => $a->end_date?->format('d/m/Y H:i'),
                 'owner' => $a->owner->full_name,

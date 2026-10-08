@@ -11,6 +11,7 @@ interface Authorization {
     full_name: string;
     cedula: string;
     plate: string | null;
+    vehicle: string | null;
     type: string;
     end_date: string | null;
     owner: string;
@@ -42,6 +43,13 @@ const filtered = computed(() => {
 const typeVariant: Record<string, 'default' | 'secondary'> = {
     visitante: 'secondary',
     autorizado: 'default',
+};
+
+const vehicleLabel: Record<string, string> = {
+    automovil: 'Automóvil',
+    camioneta: 'Camioneta',
+    moto: 'Moto',
+    bicicleta: 'Bicicleta',
 };
 
 const typeLabel: Record<string, string> = {
@@ -113,11 +121,12 @@ const typeLabel: Record<string, string> = {
                                 {{ auth.property ?? 'Sin inmueble asignado' }}
                             </span>
                             <span
-                                v-if="auth.plate"
-                                class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono font-semibold tracking-wider"
+                                v-if="auth.plate || auth.vehicle"
+                                class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5"
                             >
                                 <Car class="h-3.5 w-3.5 text-muted-foreground" />
-                                {{ auth.plate }}
+                                <span v-if="auth.vehicle" class="text-muted-foreground">{{ vehicleLabel[auth.vehicle] ?? auth.vehicle }}</span>
+                                <span v-if="auth.plate" class="font-mono font-semibold tracking-wider">{{ auth.plate }}</span>
                             </span>
                         </div>
                         <p class="text-sm text-muted-foreground">

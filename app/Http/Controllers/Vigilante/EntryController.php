@@ -84,11 +84,18 @@ class EntryController extends Controller
             ],
             'to_administration' => 'boolean',
             'type' => 'required|in:propietario,residente,autorizado,visitante',
-            'vehicle' => 'required|in:automovil,camioneta,moto,bicicleta,ninguno',
+            'vehicle' => [
+                'required',
+                'in:automovil,camioneta,moto,bicicleta,ninguno',
+                // Con placa debe indicarse en qué tipo de vehículo llega
+                Rule::notIn($request->filled('plate') ? ['ninguno'] : []),
+            ],
             'plate' => 'nullable|string|max:20',
             'observations' => 'nullable|string',
         ], [
-            'apartment.required' => 'Selecciona el destino: una casa, un apartamento o Administración.',
+            'apartment.required' => 'Selecciona el destino.',
+            'vehicle.required' => 'Selecciona el tipo de vehículo.',
+            'vehicle.not_in' => 'Selecciona el tipo de vehículo de la placa.',
         ]);
 
         $data['to_administration'] = $request->boolean('to_administration');
@@ -144,8 +151,9 @@ class EntryController extends Controller
     }
 
     /**
-     * Lookup by license plate: first an active authorization registered with
-     * that plate, then the most recent entry with it.
+     * Lookup by license plate. If the plate has entries, the form is filled with
+     * the last one (person, destination and vehicle); otherwise it falls back to
+     * an active authorization registered with that plate.
      */
     public function lookupByPlate(Request $request): JsonResponse
     {
@@ -155,25 +163,39 @@ class EntryController extends Controller
             return response()->json(null);
         }
 
-        $authorization = $this->wherePlate(Authorization::active(), $plate)->latest()->first();
         $lastEntry = $this->wherePlate(Entry::query(), $plate)->latest('entry_at')->first();
 
-        $cedula = $authorization?->cedula ?? $lastEntry?->cedula;
+        if ($lastEntry) {
+            $cedula = $lastEntry->cedula;
+            $authorization = Authorization::active()->where('cedula', $cedula)->latest()->first();
 
-        if (! $cedula) {
+            return response()->json([
+                'cedula' => $cedula,
+                ...$this->describePerson($cedula, $authorization, $lastEntry),
+                // El destino y el vehículo se toman tal cual del último ingreso
+                'apartment' => $lastEntry->apartment,
+                'to_administration' => $lastEntry->to_administration,
+                'vehicle' => $lastEntry->vehicle,
+                'plate' => $lastEntry->plate,
+                'source' => 'entry',
+                'last_entry_at' => $lastEntry->entry_at->format('d/m/Y H:i'),
+            ]);
+        }
+
+        $authorization = $this->wherePlate(Authorization::active(), $plate)->latest()->first();
+
+        if (! $authorization) {
             return response()->json(null);
         }
 
-        // Si la placa está en una autorización, el último ingreso solo cuenta si es de esa misma persona
-        if ($lastEntry && $lastEntry->cedula !== $cedula) {
-            $lastEntry = Entry::where('cedula', $cedula)->latest('entry_at')->first();
-        }
-
-        $authorization ??= Authorization::active()->where('cedula', $cedula)->latest()->first();
-
         return response()->json([
-            'cedula' => $cedula,
-            ...$this->describePerson($cedula, $authorization, $lastEntry),
+            'cedula' => $authorization->cedula,
+            ...$this->describePerson($authorization->cedula, $authorization, null),
+            'to_administration' => false,
+            'vehicle' => $authorization->vehicle,
+            'plate' => $authorization->plate,
+            'source' => 'authorization',
+            'last_entry_at' => null,
         ]);
     }
 
@@ -217,6 +239,7 @@ class EntryController extends Controller
             'authorization' => $authorization ? [
                 'type' => $authorization->type,
                 'plate' => $authorization->plate,
+                'vehicle' => $authorization->vehicle,
                 'end_date' => $authorization->end_date?->format('d/m/Y H:i'),
             ] : null,
         ];

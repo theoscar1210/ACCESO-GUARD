@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     AlertCircle,
     AlertTriangle,
+    ArrowLeft,
     BadgeCheck,
+    Car,
     CheckCircle2,
+    History,
     Loader2,
+    MessageSquarePlus,
     User,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -14,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { Auth } from '@/types';
 
 interface PropertyOption {
     number: string;
@@ -23,8 +26,6 @@ interface PropertyOption {
 }
 
 const props = defineProps<{ properties: PropertyOption[] }>();
-
-const { auth } = usePage<{ auth: Auth }>().props;
 
 const form = useForm({
     first_name: '',
@@ -40,6 +41,7 @@ const form = useForm({
 interface AuthorizationInfo {
     type: string;
     plate: string | null;
+    vehicle: string | null;
     end_date: string | null;
 }
 
@@ -47,10 +49,22 @@ interface LookupResult {
     first_name: string;
     last_name: string;
     apartment: string | null;
+    to_administration?: boolean;
+    vehicle?: string | null;
     type: string;
     known_in_system: boolean;
     authorization: AuthorizationInfo | null;
 }
+
+interface PlateLookupResult extends LookupResult {
+    cedula: string;
+    plate: string | null;
+    source: 'entry' | 'authorization';
+    last_entry_at: string | null;
+}
+
+// Opción "Administración" del selector de destino
+const ADMINISTRATION = '__administracion__';
 
 const authorization = ref<AuthorizationInfo | null>(null);
 const noAuthorization = ref(false);
@@ -60,6 +74,10 @@ const searching = ref(false);
 const searchingPlate = ref(false);
 const lookupDone = ref(false);
 const knownInSystem = ref(false);
+// De dónde salieron los datos al buscar por placa (para avisar al guarda)
+const plateFill = ref<{ source: 'entry' | 'authorization'; date: string | null } | null>(null);
+// Evita que rellenar la cédula desde la placa dispare otra búsqueda que pise los datos
+let skipCedulaLookup = false;
 
 function applyLookupResult(data: LookupResult) {
     form.first_name = data.first_name ?? form.first_name;
@@ -67,6 +85,11 @@ function applyLookupResult(data: LookupResult) {
     // Solo se precarga si el inmueble sigue registrado (el selector no admite otros valores)
     if (data.apartment && props.properties.some((p) => p.number === data.apartment)) {
         form.apartment = data.apartment;
+    } else if (data.to_administration) {
+        form.apartment = ADMINISTRATION;
+    }
+    if (data.vehicle) {
+        form.vehicle = data.vehicle;
     }
     form.type = data.type ?? form.type;
     authorization.value = data.authorization ?? null;
@@ -109,11 +132,16 @@ async function lookupPlate(plate: string) {
         const res = await fetch(
             `/vigilante/entries/lookup-plate?plate=${encodeURIComponent(plate)}`,
         );
-        const data: (LookupResult & { cedula: string }) | null =
-            await res.json();
-        if (data) {
-            form.cedula = data.cedula;
+        const data: PlateLookupResult | null = await res.json();
+        if (data && data.cedula) {
+            if (form.cedula !== data.cedula) {
+                skipCedulaLookup = true;
+                form.cedula = data.cedula;
+            }
             applyLookupResult(data);
+            plateFill.value = { source: data.source, date: data.last_entry_at };
+        } else {
+            plateFill.value = null;
         }
     } finally {
         searchingPlate.value = false;
@@ -124,6 +152,10 @@ watch(
     () => form.cedula,
     (val) => {
         if (lookupTimeout.value) clearTimeout(lookupTimeout.value);
+        if (skipCedulaLookup) {
+            skipCedulaLookup = false;
+            return;
+        }
         authorization.value = null;
         noAuthorization.value = false;
         lookupDone.value = false;
@@ -135,8 +167,14 @@ watch(
 watch(
     () => form.plate,
     (val) => {
-        if (!val || val.length < 3) return;
         if (plateTimeout.value) clearTimeout(plateTimeout.value);
+        plateFill.value = null;
+
+        // Con placa hay que indicar el tipo de vehículo; sin placa vuelve a peatón
+        if (val && form.vehicle === 'ninguno') form.vehicle = '';
+        if (!val && form.vehicle === '') form.vehicle = 'ninguno';
+
+        if (!val || val.length < 3) return;
         plateTimeout.value = setTimeout(() => lookupPlate(val), 600);
     },
 );
@@ -149,9 +187,6 @@ onMounted(() => {
         lookup(cedula);
     }
 });
-
-// Opción "Administración" del selector de destino
-const ADMINISTRATION = '__administracion__';
 
 function submit() {
     form
@@ -189,7 +224,16 @@ const typeButtonClass = (value: string, color: string) => {
     return map[color];
 };
 
-const needsPlate = computed(() => form.vehicle !== 'ninguno');
+function clearForm() {
+    form.reset();
+    form.clearErrors();
+    authorization.value = null;
+    noAuthorization.value = false;
+    lookupDone.value = false;
+    knownInSystem.value = false;
+    plateFill.value = null;
+    showObservations.value = false;
+}
 
 // Error devuelto por el servidor que no corresponde a un campo del formulario
 const activeEntryError = computed(
@@ -210,179 +254,171 @@ function propertyOptionLabel(p: PropertyOption): string {
         ? p.label
         : `${type} ${p.label}`;
 }
+
+// La observación queda oculta tras un enlace para que el formulario quepa sin scroll
+const showObservations = ref(false);
+watch(
+    () => form.observations || form.errors.observations,
+    (value) => {
+        if (value) showObservations.value = true;
+    },
+);
+
+const typeShortLabel: Record<string, string> = {
+    visitante: 'visitante',
+    autorizado: 'permanente',
+};
 </script>
 
 <template>
     <AppLayout>
         <Head title="Registrar Ingreso" />
 
-        <div class="mx-auto max-w-2xl p-4 sm:p-6">
-            <div class="mb-6 flex flex-col gap-1">
-                <Link href="/vigilante/entries" class="text-sm text-muted-foreground hover:text-foreground">← Monitor de Ingresos</Link>
-                <h1 class="text-2xl font-bold">Registrar Ingreso</h1>
-                <p class="text-sm text-muted-foreground">
-                    Vigilante: {{ auth.user.first_name }}
-                    {{ auth.user.last_name }}
-                </p>
+        <div class="mx-auto flex w-full max-w-3xl flex-col gap-2.5 p-3 sm:p-4">
+            <!-- Encabezado -->
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-lg font-bold sm:text-xl">Registrar ingreso</h1>
+                <Link
+                    href="/vigilante/entries"
+                    class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                >
+                    <ArrowLeft class="h-4 w-4" />
+                    Monitor
+                </Link>
             </div>
 
-            <!-- Alerta: INGRESO ACTIVO (bloqueo prominente) -->
+            <!-- Ingreso duplicado: bloquea el registro, se muestra destacado pero compacto -->
             <div
                 v-if="activeEntryError"
-                class="mb-4 flex items-start gap-3 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-4 text-sm text-red-900"
+                class="flex items-start gap-2 rounded-lg border-2 border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 sm:text-sm"
             >
-                <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                <div>
-                    <p class="font-bold text-base">Ingreso duplicado</p>
-                    <p class="mt-0.5 text-red-700">{{ activeEntryError }}</p>
-                </div>
+                <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                <p><span class="font-bold">Ingreso duplicado.</span> {{ activeEntryError }}</p>
             </div>
 
-            <!-- Persona conocida en el sistema -->
-            <Transition name="alert">
-                <div
-                    v-if="knownInSystem && lookupDone"
-                    class="mb-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"
+            <!-- Estado de la persona: etiquetas de una línea en vez de cajas grandes -->
+            <div
+                v-if="plateFill || (lookupDone && (knownInSystem || authorization || noAuthorization))"
+                class="flex flex-wrap gap-1.5 text-xs"
+            >
+                <span
+                    v-if="plateFill?.source === 'entry'"
+                    class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800"
                 >
-                    <BadgeCheck class="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                    <p class="font-semibold">
-                        Persona registrada en el sistema
-                    </p>
-                </div>
-            </Transition>
-
-            <!-- Alerta: AUTORIZACIÓN ACTIVA -->
-            <Transition name="alert">
-                <div
+                    <History class="h-3.5 w-3.5" />
+                    Último ingreso {{ plateFill.date }}
+                </span>
+                <span
+                    v-else-if="plateFill?.source === 'authorization'"
+                    class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-800"
+                >
+                    <Car class="h-3.5 w-3.5" />
+                    Placa autorizada
+                </span>
+                <span
+                    v-if="lookupDone && knownInSystem"
+                    class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800"
+                >
+                    <BadgeCheck class="h-3.5 w-3.5" />
+                    Registrado
+                </span>
+                <span
                     v-if="authorization"
-                    class="mb-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+                    class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-800"
                 >
-                    <CheckCircle2
-                        class="mt-0.5 h-4 w-4 shrink-0 text-green-600"
-                    />
-                    <div>
-                        <p class="font-semibold">
-                            Autorización activa encontrada
-                        </p>
-                        <p class="text-green-700">
-                            Tipo:
-                            <span class="font-medium">{{
-                                authorization.type
-                            }}</span>
-                            <span v-if="authorization.end_date">
-                                &mdash; Válida hasta:
-                                <span class="font-medium">{{
-                                    authorization.end_date
-                                }}</span></span
-                            >
-                            <span v-else>
-                                &mdash; Sin fecha de vencimiento</span
-                            >
-                        </p>
-                        <p v-if="authorization.plate" class="text-green-700">
-                            Vehículo autorizado:
-                            <span class="font-mono font-semibold tracking-wider">{{ authorization.plate }}</span>
-                        </p>
-                    </div>
-                </div>
-            </Transition>
-
-            <!-- Alerta: SIN AUTORIZACIÓN (solo para visitantes no conocidos) -->
-            <Transition name="alert">
-                <div
-                    v-if="
-                        noAuthorization &&
-                        lookupDone &&
-                        !knownInSystem &&
-                        form.cedula.length >= 3
-                    "
-                    class="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                    <CheckCircle2 class="h-3.5 w-3.5" />
+                    Autorizado {{ typeShortLabel[authorization.type] ?? authorization.type }}
+                    · {{ authorization.end_date ? `hasta ${authorization.end_date}` : 'sin vencimiento' }}
+                    <span v-if="authorization.plate" class="font-mono font-semibold">· {{ authorization.plate }}</span>
+                </span>
+                <span
+                    v-if="noAuthorization && lookupDone && !knownInSystem && form.cedula.length >= 3"
+                    class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800"
                 >
-                    <AlertCircle
-                        class="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
-                    />
-                    <div>
-                        <p class="font-semibold">Sin autorización previa</p>
-                        <p class="text-amber-700">
-                            Esta persona no tiene autorización activa. Puedes
-                            registrar el ingreso de todas formas.
-                        </p>
-                    </div>
-                </div>
-            </Transition>
+                    <AlertCircle class="h-3.5 w-3.5" />
+                    Sin autorización previa
+                </span>
+            </div>
 
             <form
                 @submit.prevent="submit"
                 autocomplete="off"
                 novalidate
-                class="space-y-5 rounded-xl border bg-card p-6 shadow-sm"
+                class="grid grid-cols-2 gap-x-3 gap-y-2.5 rounded-xl border bg-card p-3 shadow-sm sm:p-4 lg:grid-cols-4"
             >
-                <!-- Cédula con indicador de búsqueda -->
-                <div class="grid gap-1.5">
-                    <Label for="cedula">Cédula *</Label>
+                <!-- Placa: con solo la placa se carga el último ingreso -->
+                <div class="grid content-start gap-1">
+                    <Label for="plate" class="flex items-center gap-1 text-xs">
+                        <Car class="h-3.5 w-3.5 text-muted-foreground" />
+                        Placa
+                    </Label>
+                    <div class="relative">
+                        <Input
+                            id="plate"
+                            v-model="form.plate"
+                            placeholder="ABC-123"
+                            autofocus
+                            maxlength="20"
+                            class="pr-8 font-mono text-base tracking-widest uppercase placeholder:tracking-normal"
+                            @input="form.plate = (form.plate ?? '').toUpperCase()"
+                        />
+                        <Loader2
+                            v-if="searchingPlate"
+                            class="absolute top-2.5 right-2.5 h-4 w-4 animate-spin text-muted-foreground"
+                        />
+                    </div>
+                    <InputError :message="form.errors.plate" class="text-xs" />
+                </div>
+
+                <!-- Tipo de vehículo -->
+                <div class="grid content-start gap-1">
+                    <Label for="vehicle" class="text-xs">Vehículo *</Label>
+                    <select
+                        id="vehicle"
+                        v-model="form.vehicle"
+                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm"
+                    >
+                        <option value="" disabled>Tipo...</option>
+                        <option value="ninguno" :disabled="!!form.plate">A pie</option>
+                        <option value="automovil">Automóvil</option>
+                        <option value="camioneta">Camioneta</option>
+                        <option value="moto">Moto</option>
+                        <option value="bicicleta">Bicicleta</option>
+                    </select>
+                    <InputError :message="form.errors.vehicle" class="text-xs" />
+                </div>
+
+                <!-- Cédula -->
+                <div class="grid content-start gap-1">
+                    <Label for="cedula" class="flex items-center gap-1 text-xs">
+                        <User class="h-3.5 w-3.5 text-muted-foreground" />
+                        Cédula *
+                    </Label>
                     <div class="relative">
                         <Input
                             id="cedula"
                             v-model="form.cedula"
-                            placeholder="Número de cédula"
-                            autocomplete="off"
-                            class="pr-28 font-mono text-base"
+                            placeholder="Número"
+                            inputmode="numeric"
+                            class="pr-8 font-mono text-base"
                         />
-                        <span
+                        <Loader2
                             v-if="searching"
-                            class="absolute top-2.5 right-3 flex items-center gap-1 text-xs text-muted-foreground"
-                        >
-                            <Loader2 class="h-3 w-3 animate-spin" />
-                            Consultando...
-                        </span>
-                        <span
-                            v-else-if="lookupDone && knownInSystem"
-                            class="absolute top-2.5 right-3 flex items-center gap-1 text-xs font-medium text-blue-600"
-                        >
-                            <User class="h-3 w-3" />
-                            Registrado
-                        </span>
-                        <span
-                            v-else-if="lookupDone && authorization"
-                            class="absolute top-2.5 right-3 text-xs font-medium text-green-600"
-                        >
-                            ✓ Autorizado
-                        </span>
+                            class="absolute top-2.5 right-2.5 h-4 w-4 animate-spin text-muted-foreground"
+                        />
                     </div>
                     <InputError :message="form.errors.cedula" class="text-xs" />
                 </div>
 
-                <!-- Nombres y apellidos -->
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="grid gap-1.5">
-                        <Label for="first_name">Nombres *</Label>
-                        <Input
-                            id="first_name"
-                            v-model="form.first_name"
-                            placeholder="Nombres"
-                        />
-                        <InputError :message="form.errors.first_name" />
-                    </div>
-                    <div class="grid gap-1.5">
-                        <Label for="last_name">Apellidos *</Label>
-                        <Input
-                            id="last_name"
-                            v-model="form.last_name"
-                            placeholder="Apellidos"
-                        />
-                        <InputError :message="form.errors.last_name" />
-                    </div>
-                </div>
-
                 <!-- Destino: casa, apartamento o administración -->
-                <div class="grid gap-1.5">
-                    <Label for="apartment">Destino *</Label>
+                <div class="grid content-start gap-1">
+                    <Label for="apartment" class="text-xs">Destino *</Label>
                     <select
                         id="apartment"
                         v-model="form.apartment"
-                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm"
                     >
-                        <option value="" disabled>Selecciona el destino...</option>
+                        <option value="" disabled>Destino...</option>
                         <option :value="ADMINISTRATION">Administración</option>
                         <optgroup v-if="properties.length" label="Casas y apartamentos">
                             <option
@@ -394,125 +430,73 @@ function propertyOptionLabel(p: PropertyOption): string {
                             </option>
                         </optgroup>
                     </select>
-                    <InputError :message="form.errors.apartment" />
+                    <InputError :message="form.errors.apartment" class="text-xs" />
                 </div>
 
-                <!-- Tipo — 4 botones visuales -->
-                <div class="grid gap-2">
-                    <Label>Tipo de persona *</Label>
-                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <!-- Nombres y apellidos -->
+                <div class="grid content-start gap-1 lg:col-span-2">
+                    <Label for="first_name" class="text-xs">Nombres *</Label>
+                    <Input id="first_name" v-model="form.first_name" placeholder="Nombres" />
+                    <InputError :message="form.errors.first_name" class="text-xs" />
+                </div>
+                <div class="grid content-start gap-1 lg:col-span-2">
+                    <Label for="last_name" class="text-xs">Apellidos *</Label>
+                    <Input id="last_name" v-model="form.last_name" placeholder="Apellidos" />
+                    <InputError :message="form.errors.last_name" class="text-xs" />
+                </div>
+
+                <!-- Tipo de persona: 4 botones en una fila -->
+                <div class="col-span-2 grid gap-1 lg:col-span-4">
+                    <Label class="text-xs">Tipo de persona *</Label>
+                    <div class="grid grid-cols-4 gap-1.5">
                         <button
                             v-for="opt in typeOptions"
                             :key="opt.value"
                             type="button"
                             @click="form.type = opt.value"
                             :class="[
-                                'flex flex-col items-center rounded-lg border-2 py-3 text-sm font-semibold transition-all',
+                                'h-10 truncate rounded-lg border-2 px-1 text-xs font-semibold transition-all sm:text-sm',
                                 typeButtonClass(opt.value, opt.color),
                             ]"
                         >
                             {{ opt.label }}
                         </button>
                     </div>
-                    <InputError :message="form.errors.type" />
+                    <InputError :message="form.errors.type" class="text-xs" />
                 </div>
 
-                <!-- Vehículo -->
-                <div class="grid gap-1.5">
-                    <Label for="vehicle">Vehículo</Label>
-                    <select
-                        id="vehicle"
-                        v-model="form.vehicle"
-                        class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                    >
-                        <option value="ninguno">Ninguno / Peatón</option>
-                        <option value="automovil">Automóvil</option>
-                        <option value="camioneta">Camioneta</option>
-                        <option value="moto">Moto</option>
-                        <option value="bicicleta">Bicicleta</option>
-                    </select>
-                    <InputError :message="form.errors.vehicle" />
-                </div>
-
-                <!-- Placa — aparece cuando tiene vehículo -->
-                <Transition name="alert">
-                    <div v-if="needsPlate" class="grid gap-1.5">
-                        <Label for="plate">Placa del vehículo</Label>
-                        <div class="relative">
-                            <Input
-                                id="plate"
-                                v-model="form.plate"
-                                placeholder="Ej: ABC-123"
-                                class="font-mono tracking-widest uppercase"
-                                @input="
-                                    form.plate = (
-                                        form.plate ?? ''
-                                    ).toUpperCase()
-                                "
-                            />
-                            <span
-                                v-if="searchingPlate"
-                                class="absolute top-2.5 right-3 flex items-center gap-1 text-xs text-muted-foreground"
-                            >
-                                <Loader2 class="h-3 w-3 animate-spin" />
-                                buscando...
-                            </span>
-                        </div>
-                        <p class="text-xs text-muted-foreground">
-                            Si la placa está en una autorización o tiene ingresos previos, los datos del conductor y el destino se completarán automáticamente.
-                        </p>
-                        <InputError :message="form.errors.plate" />
-                    </div>
-                </Transition>
-
-                <!-- Observaciones -->
-                <div class="grid gap-1.5">
-                    <Label for="observations">Observaciones</Label>
-                    <textarea
+                <!-- Observación (opcional, oculta tras un enlace) -->
+                <div class="col-span-2 lg:col-span-4">
+                    <Input
+                        v-if="showObservations"
                         id="observations"
                         v-model="form.observations"
-                        rows="2"
-                        placeholder="Observaciones opcionales..."
-                        class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground"
+                        placeholder="Observación (opcional)"
                     />
-                    <InputError :message="form.errors.observations" />
+                    <button
+                        v-else
+                        type="button"
+                        @click="showObservations = true"
+                        class="flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
+                    >
+                        <MessageSquarePlus class="h-3.5 w-3.5" />
+                        Agregar observación
+                    </button>
+                    <InputError :message="form.errors.observations" class="text-xs" />
                 </div>
 
-                <div class="flex gap-3">
-                <Button
-                    type="button"
-                    variant="outline"
-                    class="flex-1"
-                    @click="form.reset(); authorization = null; noAuthorization = false; lookupDone = false; knownInSystem = false;"
-                >Limpiar</Button>
-                <Button
-                    type="submit"
-                    class="flex-1"
-                    size="lg"
-                    :disabled="form.processing"
-                >
-                    <Loader2
-                        v-if="form.processing"
-                        class="mr-2 h-4 w-4 animate-spin"
-                    />
-                    {{
-                        form.processing ? 'Registrando...' : 'Registrar Ingreso'
-                    }}
-                </Button>
+                <!-- Acciones -->
+                <div class="col-span-2 flex gap-2 lg:col-span-4">
+                    <Button type="button" variant="outline" class="h-11" @click="clearForm">
+                        Limpiar
+                    </Button>
+                    <Button type="submit" class="h-11 flex-1 text-base" :disabled="form.processing">
+                        <Loader2 v-if="form.processing" class="h-4 w-4 animate-spin" />
+                        {{ form.processing ? 'Registrando...' : 'Registrar ingreso' }}
+                    </Button>
                 </div>
             </form>
         </div>
     </AppLayout>
 </template>
 
-<style scoped>
-.alert-enter-active,
-.alert-leave-active {
-    transition: all 0.2s ease;
-}
-.alert-enter-from,
-.alert-leave-to {
-    opacity: 0;
-    transform: translateY(-6px);
-}
-</style>

@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import { Car, X } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import {
+    Car,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    LogOut,
+    MessageSquare,
+    Search,
+    X,
+} from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useFitToViewport } from '@/composables/useFitToViewport';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 interface Entry {
@@ -70,26 +80,117 @@ function clearSearch() {
     selected.value = [];
 }
 
+// ── Sin scroll: la pantalla ocupa el alto visible y caben tantas filas como permita ──
+const root = ref<HTMLElement | null>(null);
+const { height: rootHeight } = useFitToViewport(root);
+
+const ROW_HEIGHT = 56; // h-14
+const ROW_GAP = 6; // gap-1.5
+const MAX_PER_PAGE = 10;
+
+const listEl = ref<HTMLElement | null>(null);
+const listHeight = ref(0);
+let observer: ResizeObserver | null = null;
+
+// La lista puede aparecer después (p. ej. si al cargar no había nadie dentro)
+watch(
+    listEl,
+    (el) => {
+        observer?.disconnect();
+        if (!el) return;
+        observer = new ResizeObserver(([entry]) => {
+            listHeight.value = entry.contentRect.height;
+        });
+        observer.observe(el);
+    },
+    { flush: 'post' },
+);
+
+onBeforeUnmount(() => observer?.disconnect());
+
+const perPage = computed(() => {
+    if (listHeight.value === 0) return MAX_PER_PAGE;
+    const fits = Math.floor((listHeight.value + ROW_GAP) / (ROW_HEIGHT + ROW_GAP));
+
+    return Math.min(MAX_PER_PAGE, Math.max(1, fits));
+});
+
+// Paginación local: la búsqueda sigue recorriendo a todos los que están dentro
+const page = ref(1);
+
+const lastPage = computed(() =>
+    Math.max(1, Math.ceil(filtered.value.length / perPage.value)),
+);
+
+const paged = computed(() =>
+    filtered.value.slice(
+        (page.value - 1) * perPage.value,
+        page.value * perPage.value,
+    ),
+);
+
+const rangeFrom = computed(() =>
+    filtered.value.length === 0 ? 0 : (page.value - 1) * perPage.value + 1,
+);
+const rangeTo = computed(() =>
+    Math.min(page.value * perPage.value, filtered.value.length),
+);
+
+// Números de página con "…" cuando hay muchas: 1 … 4 5 6 … 12
+const pageItems = computed<(number | '…')[]>(() => {
+    const total = lastPage.value;
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+
+    const current = page.value;
+    const items: (number | '…')[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) items.push('…');
+    for (let i = start; i <= end; i++) items.push(i);
+    if (end < total - 1) items.push('…');
+    items.push(total);
+
+    return items;
+});
+
+function goToPage(n: number) {
+    page.value = Math.min(Math.max(1, n), lastPage.value);
+}
+
+// Al buscar se vuelve a la primera página; si la lista se achica (tras registrar
+// salidas o al girar el celular) no se queda en una página vacía
+watch(search, () => {
+    page.value = 1;
+});
+watch(lastPage, (last) => {
+    if (page.value > last) page.value = last;
+});
+
 function toggle(id: number) {
     const idx = selected.value.indexOf(id);
     if (idx === -1) selected.value.push(id);
     else selected.value.splice(idx, 1);
 }
 
+const allSelected = computed(
+    () =>
+        filtered.value.length > 0 &&
+        selected.value.length === filtered.value.length,
+);
+
 function toggleAll() {
-    if (selected.value.length === filtered.value.length) {
-        selected.value = [];
-    } else {
-        selected.value = filtered.value.map((e) => e.id);
-    }
+    selected.value = allSelected.value ? [] : filtered.value.map((e) => e.id);
 }
 
 function submit() {
     form.entry_ids = selected.value;
     form.post('/vigilante/exits', {
+        preserveScroll: true,
         onSuccess: () => {
             selected.value = [];
             search.value = '';
+            form.reset('observations');
         },
     });
 }
@@ -108,7 +209,6 @@ const typeLabel: Record<string, string> = {
 };
 
 const vehicleLabel: Record<string, string> = {
-    ninguno: '',
     automovil: '🚗',
     camioneta: '🚙',
     moto: '🏍',
@@ -120,114 +220,92 @@ const vehicleLabel: Record<string, string> = {
     <AppLayout>
         <Head title="Registrar Salidas" />
 
-        <div class="flex flex-col gap-6 p-4 sm:p-6">
-            <div
-                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-                <div>
-                    <h1 class="text-2xl font-bold">Registrar Salidas</h1>
-                    <p class="text-sm text-muted-foreground">
-                        {{ inside.length }} persona(s) dentro del edificio
-                    </p>
-                </div>
-                <Button
-                    @click="submit"
-                    :disabled="selected.length === 0 || form.processing"
-                    class="min-w-36"
+        <div
+            ref="root"
+            :style="{ height: rootHeight }"
+            class="flex flex-col gap-2 overflow-hidden p-3 sm:gap-3 sm:p-4"
+        >
+            <!-- Encabezado -->
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-lg font-bold sm:text-xl">
+                    Salidas
+                    <span class="ml-1 text-sm font-normal text-muted-foreground">
+                        {{ inside.length }} dentro
+                    </span>
+                </h1>
+                <button
+                    v-if="filtered.length > 0"
+                    type="button"
+                    @click="toggleAll"
+                    class="text-sm text-primary underline-offset-4 hover:underline"
                 >
-                    Registrar salida
-                    <span v-if="selected.length > 0" class="ml-1"
-                        >({{ selected.length }})</span
-                    >
-                </Button>
+                    {{ allSelected ? 'Quitar selección' : `Seleccionar todos (${filtered.length})` }}
+                </button>
             </div>
 
             <!-- Sin personas dentro -->
             <div
                 v-if="inside.length === 0"
-                class="rounded-xl border bg-card p-12 text-center text-muted-foreground shadow-sm"
+                class="flex flex-1 items-center justify-center rounded-xl border bg-card p-6 text-center text-muted-foreground shadow-sm"
             >
                 No hay personas dentro del edificio en este momento.
             </div>
 
             <template v-else>
-                <!-- Búsqueda (nombre, cédula, destino o placa) y seleccionar todos -->
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div class="relative w-full sm:max-w-sm">
-                        <input
-                            v-model="search"
-                            type="text"
-                            autocomplete="off"
-                            placeholder="Buscar por nombre, cédula, destino o placa..."
-                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-9 text-sm shadow-sm placeholder:text-muted-foreground"
-                        />
-                        <button
-                            v-if="search"
-                            type="button"
-                            @click="clearSearch"
-                            class="absolute top-2 right-2.5 text-muted-foreground hover:text-foreground"
-                            aria-label="Limpiar búsqueda"
-                        >
-                            <X class="h-4 w-4" />
-                        </button>
-                    </div>
-                    <div class="flex gap-3">
+                <!-- Búsqueda por nombre, cédula, destino o placa -->
+                <div class="relative">
+                    <Search class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
+                    <input
+                        v-model="search"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Nombre, cédula, destino o placa..."
+                        class="flex h-10 w-full rounded-md border border-input bg-transparent py-1 pr-9 pl-9 text-sm shadow-sm placeholder:text-muted-foreground"
+                    />
                     <button
-                        @click="toggleAll"
-                        class="text-sm text-primary underline-offset-4 hover:underline"
+                        v-if="search"
+                        type="button"
+                        @click="clearSearch"
+                        class="absolute top-2.5 right-2.5 text-muted-foreground hover:text-foreground"
+                        aria-label="Limpiar búsqueda"
                     >
-                        {{
-                            selected.length === filtered.length
-                                ? 'Deseleccionar todos'
-                                : 'Seleccionar todos'
-                        }}
+                        <X class="h-5 w-5" />
                     </button>
-                    <button
-                        v-if="selected.length > 0"
-                        @click="selected = []"
-                        class="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                    >Limpiar selección</button>
-                    </div>
                 </div>
 
-                <!-- Placa encontrada: ocupantes ya seleccionados -->
-                <div
+                <!-- Placa encontrada / sin resultados (una sola línea) -->
+                <p
                     v-if="plateMatches.length > 0"
-                    class="flex max-w-lg flex-col gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 sm:flex-row sm:items-center sm:justify-between"
+                    class="flex items-center gap-2 truncate rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-sm text-green-800"
                 >
-                    <span class="flex items-center gap-2">
-                        <Car class="h-4 w-4 shrink-0" />
-                        <span>
-                            Vehículo <span class="font-mono font-bold">{{ plateMatches[0].plate }}</span>:
-                            {{ plateMatches.length }} ocupante(s) seleccionado(s)
-                        </span>
+                    <Car class="h-4 w-4 shrink-0" />
+                    <span class="truncate">
+                        Vehículo <span class="font-mono font-bold">{{ plateMatches[0].plate }}</span>:
+                        {{ plateMatches.length }} ocupante(s) seleccionado(s)
                     </span>
-                    <Button size="sm" :disabled="form.processing" @click="submit">
-                        Registrar salida
-                    </Button>
-                </div>
+                </p>
                 <p
                     v-else-if="search && filtered.length === 0"
-                    class="text-sm text-muted-foreground"
+                    class="truncate px-1 text-sm text-muted-foreground"
                 >
                     Nadie dentro coincide con «{{ search }}».
                 </p>
 
-                <!-- Lista de personas dentro -->
-                <div class="grid gap-2">
-                    <div
-                        v-for="entry in filtered"
+                <!-- Lista: ocupa el espacio restante, sin scroll -->
+                <div ref="listEl" class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+                    <button
+                        v-for="entry in paged"
                         :key="entry.id"
+                        type="button"
                         @click="toggle(entry.id)"
                         :class="[
-                            'flex cursor-pointer items-center gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors',
+                            'flex h-14 shrink-0 items-center gap-3 rounded-lg border bg-card px-3 text-left shadow-sm transition-colors',
                             selected.includes(entry.id)
                                 ? 'border-primary bg-primary/5'
-                                : 'hover:bg-muted/30',
+                                : 'hover:bg-muted/40',
                         ]"
                     >
-                        <!-- Checkbox -->
-                        <div
+                        <span
                             :class="[
                                 'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
                                 selected.includes(entry.id)
@@ -235,62 +313,101 @@ const vehicleLabel: Record<string, string> = {
                                     : 'border-muted-foreground',
                             ]"
                         >
-                            <svg
-                                v-if="selected.includes(entry.id)"
-                                class="h-3 w-3"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="3"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                        </div>
+                            <Check v-if="selected.includes(entry.id)" class="h-3 w-3" stroke-width="3" />
+                        </span>
 
-                        <!-- Info -->
-                        <div class="flex flex-1 items-center justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="font-semibold">{{ entry.full_name }}</p>
-                                <p class="text-sm text-muted-foreground">
-                                    CC {{ entry.cedula }} · Destino {{ entry.apartment }}
-                                </p>
-                                <p v-if="entry.plate || (entry.vehicle && entry.vehicle !== 'ninguno')" class="text-xs text-muted-foreground">
-                                    <span v-if="entry.vehicle && entry.vehicle !== 'ninguno'">
-                                        {{ vehicleLabel[entry.vehicle] ?? entry.vehicle }}
-                                    </span>
-                                    <span v-if="entry.plate" class="ml-1 font-mono font-semibold tracking-wider">{{ entry.plate }}</span>
-                                </p>
-                                <p v-if="entry.observations" class="mt-0.5 text-xs italic text-muted-foreground">
-                                    "{{ entry.observations }}"
-                                </p>
-                            </div>
-                            <div class="flex shrink-0 flex-col items-end gap-1">
-                                <Badge :variant="typeVariant[entry.type]">
-                                    {{ typeLabel[entry.type] ?? entry.type }}
-                                </Badge>
-                                <span class="text-xs text-muted-foreground">
-                                    Ingresó {{ entry.entry_at }}
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-center gap-1.5">
+                                <span class="truncate text-sm font-semibold">{{ entry.full_name }}</span>
+                                <span v-if="entry.observations" :title="entry.observations" class="shrink-0">
+                                    <MessageSquare class="h-3.5 w-3.5 text-muted-foreground" />
                                 </span>
-                            </div>
-                        </div>
-                    </div>
+                            </span>
+                            <span class="block truncate text-xs text-muted-foreground">
+                                {{ entry.cedula }} · {{ entry.apartment }}
+                                <template v-if="entry.plate">
+                                    · {{ vehicleLabel[entry.vehicle] ?? '' }}
+                                    <span class="font-mono font-semibold tracking-wider text-foreground">{{ entry.plate }}</span>
+                                </template>
+                            </span>
+                        </span>
+
+                        <span class="flex shrink-0 flex-col items-end gap-0.5">
+                            <Badge :variant="typeVariant[entry.type]" class="px-1.5 py-0 text-[10px]">
+                                {{ typeLabel[entry.type] ?? entry.type }}
+                            </Badge>
+                            <span class="text-[11px] text-muted-foreground">{{ entry.entry_at }}</span>
+                        </span>
+                    </button>
                 </div>
 
-                <!-- Observaciones (opcional) -->
-                <div v-if="selected.length > 0" class="grid max-w-lg gap-1.5">
-                    <label class="text-sm font-medium"
-                        >Observaciones (opcional)</label
-                    >
-                    <textarea
+                <!-- Paginación -->
+                <div
+                    v-if="filtered.length > 0"
+                    class="flex items-center justify-between gap-2 text-xs sm:text-sm"
+                >
+                    <span class="text-muted-foreground">
+                        {{ rangeFrom }}–{{ rangeTo }} de {{ filtered.length }}
+                    </span>
+                    <nav v-if="lastPage > 1" class="flex items-center gap-0.5" aria-label="Paginación">
+                        <button
+                            type="button"
+                            :disabled="page === 1"
+                            @click="goToPage(page - 1)"
+                            class="inline-flex h-9 min-w-9 items-center justify-center rounded-md transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+                            aria-label="Página anterior"
+                        >
+                            <ChevronLeft class="h-5 w-5" />
+                        </button>
+                        <template v-for="(item, i) in pageItems" :key="`${item}-${i}`">
+                            <span
+                                v-if="item === '…'"
+                                class="inline-flex h-9 min-w-6 items-center justify-center text-muted-foreground"
+                            >…</span>
+                            <button
+                                v-else
+                                type="button"
+                                @click="goToPage(item)"
+                                :aria-current="item === page ? 'page' : undefined"
+                                :class="[
+                                    'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-1 transition-colors',
+                                    item === page
+                                        ? 'bg-primary font-semibold text-primary-foreground'
+                                        : 'hover:bg-muted',
+                                ]"
+                            >
+                                {{ item }}
+                            </button>
+                        </template>
+                        <button
+                            type="button"
+                            :disabled="page === lastPage"
+                            @click="goToPage(page + 1)"
+                            class="inline-flex h-9 min-w-9 items-center justify-center rounded-md transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+                            aria-label="Página siguiente"
+                        >
+                            <ChevronRight class="h-5 w-5" />
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Acción: siempre visible abajo, al alcance del pulgar -->
+                <div class="flex items-center gap-2 border-t pt-2">
+                    <input
                         v-model="form.observations"
-                        rows="2"
-                        placeholder="Observaciones sobre la salida..."
-                        class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground"
+                        type="text"
+                        placeholder="Observación (opcional)"
+                        class="flex h-11 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm placeholder:text-muted-foreground"
                     />
+                    <Button
+                        @click="submit"
+                        :disabled="selected.length === 0 || form.processing"
+                        class="h-11 shrink-0 px-4"
+                    >
+                        <LogOut class="h-4 w-4" />
+                        Registrar salida
+                        <span v-if="selected.length > 0">({{ selected.length }})</span>
+                    </Button>
                 </div>
             </template>
         </div>

@@ -21,6 +21,7 @@ class AuthorizationController extends Controller
                 'full_name' => $a->full_name,
                 'cedula' => $a->cedula,
                 'plate' => $a->plate,
+                'vehicle' => $a->vehicle,
                 'type' => $a->type,
                 'status' => $a->status,
                 'start_date' => $a->start_date->format('d/m/Y'),
@@ -43,10 +44,13 @@ class AuthorizationController extends Controller
             'last_name' => 'required|string|max:100',
             'cedula' => 'required|string|max:20',
             'plate' => 'nullable|string|max:20',
+            'vehicle' => 'nullable|required_with:plate|in:automovil,camioneta,moto,bicicleta',
             'type' => 'required|in:visitante,autorizado',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date|after:start_date',
             'observations' => 'nullable|string',
+        ], [
+            'vehicle.required_with' => 'Selecciona el tipo de vehículo de la placa.',
         ]);
 
         Authorization::create([

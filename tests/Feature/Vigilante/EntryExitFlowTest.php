@@ -297,7 +297,7 @@ class EntryExitFlowTest extends TestCase
     {
         $owner = $this->propietarioWithProperty('A-7');
         $this->makeAuthorization($owner, [
-            'first_name' => 'Rosa', 'last_name' => 'Mejía', 'cedula' => '4455', 'plate' => 'KLM-456',
+            'first_name' => 'Rosa', 'last_name' => 'Mejía', 'cedula' => '4455', 'plate' => 'KLM-456', 'vehicle' => 'camioneta',
         ]);
 
         // Sin guiones, en minúsculas y sin ingresos previos de esa placa
@@ -309,9 +309,71 @@ class EntryExitFlowTest extends TestCase
                 'first_name' => 'Rosa',
                 'last_name' => 'Mejía',
                 'apartment' => 'A-7',
+                'vehicle' => 'camioneta',
                 'type' => 'autorizado',
-                'authorization' => ['plate' => 'KLM-456'],
+                'source' => 'authorization',
+                'authorization' => ['plate' => 'KLM-456', 'vehicle' => 'camioneta'],
             ]);
+    }
+
+    public function test_lookup_by_plate_fills_form_with_last_entry(): void
+    {
+        $vig = $this->vigilante();
+        Property::create(['number' => '202', 'type' => 'apartamento']);
+        $this->makeEntry($vig, [
+            'cedula' => '3030', 'first_name' => 'Old', 'apartment' => '101',
+            'plate' => 'QWE-987', 'vehicle' => 'automovil', 'entry_at' => now()->subDays(3),
+        ]);
+        $this->makeEntry($vig, [
+            'cedula' => '3030', 'first_name' => 'Pablo', 'last_name' => 'Rey', 'apartment' => '202',
+            'plate' => 'QWE-987', 'vehicle' => 'camioneta', 'type' => 'visitante', 'entry_at' => now()->subDay(),
+        ]);
+
+        $this->actingAs($vig)
+            ->getJson('/vigilante/entries/lookup-plate?plate=qwe 987')
+            ->assertJson([
+                'cedula' => '3030',
+                'first_name' => 'Pablo',
+                'last_name' => 'Rey',
+                'apartment' => '202',
+                'to_administration' => false,
+                'vehicle' => 'camioneta',
+                'type' => 'visitante',
+                'source' => 'entry',
+                'last_entry_at' => now()->subDay()->format('d/m/Y H:i'),
+            ]);
+    }
+
+    public function test_lookup_by_plate_returns_administration_destination(): void
+    {
+        $vig = $this->vigilante();
+        $this->makeEntry($vig, ['apartment' => null, 'to_administration' => true, 'plate' => 'ADM100', 'vehicle' => 'moto']);
+
+        $this->actingAs($vig)
+            ->getJson('/vigilante/entries/lookup-plate?plate=ADM100')
+            ->assertJson(['apartment' => null, 'to_administration' => true, 'vehicle' => 'moto']);
+    }
+
+    public function test_last_entry_takes_priority_over_authorization_with_same_plate(): void
+    {
+        $vig = $this->vigilante();
+        $this->makeEntry($vig, ['cedula' => '1111', 'first_name' => 'Conductor', 'plate' => 'PRI123', 'vehicle' => 'automovil']);
+        $this->makeAuthorization($this->propietarioWithProperty('A-9'), ['cedula' => '2222', 'first_name' => 'Otro', 'plate' => 'PRI123']);
+
+        $this->actingAs($vig)
+            ->getJson('/vigilante/entries/lookup-plate?plate=PRI123')
+            ->assertJson(['cedula' => '1111', 'first_name' => 'Conductor', 'source' => 'entry']);
+    }
+
+    public function test_entry_with_plate_requires_vehicle_type(): void
+    {
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['plate' => 'ABC123', 'vehicle' => 'ninguno']))
+            ->assertSessionHasErrors('vehicle');
+
+        $this->actingAs($this->vigilante())
+            ->post('/vigilante/entries', $this->validEntry(['plate' => '', 'vehicle' => 'ninguno']))
+            ->assertSessionHasNoErrors();
     }
 
     public function test_lookup_by_plate_uses_property_of_authorizing_tenant(): void

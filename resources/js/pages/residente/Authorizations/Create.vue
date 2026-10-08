@@ -11,6 +11,7 @@ const form = useForm({
     last_name:    '',
     cedula:       '',
     plate:        '',
+    vehicle:      '',
     type:         'visitante',
     start_date:   new Date().toISOString().split('T')[0],
     end_date:     '',
@@ -69,18 +70,35 @@ function submit() {
                     </div>
                 </div>
 
-                <!-- Placa del vehículo -->
-                <div class="grid gap-1.5">
-                    <Label for="plate">
-                        Placa del vehículo
-                        <span class="text-muted-foreground">(opcional)</span>
-                    </Label>
-                    <Input id="plate" v-model="form.plate" placeholder="Ej: ABC-123" maxlength="20"
-                        class="font-mono tracking-widest uppercase placeholder:normal-case placeholder:tracking-normal"
-                        @input="form.plate = form.plate.toUpperCase()" />
-                    <InputError :message="form.errors.plate" />
-                    <p class="text-xs text-muted-foreground">Déjalo vacío si la persona llega a pie.</p>
+                <!-- Placa y tipo de vehículo -->
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-1.5">
+                        <Label for="plate">
+                            Placa del vehículo
+                            <span class="text-muted-foreground">(opcional)</span>
+                        </Label>
+                        <Input id="plate" v-model="form.plate" placeholder="Ej: ABC-123" maxlength="20"
+                            class="font-mono tracking-widest uppercase placeholder:normal-case placeholder:tracking-normal"
+                            @input="form.plate = form.plate.toUpperCase()" />
+                        <InputError :message="form.errors.plate" />
+                    </div>
+                    <div class="grid gap-1.5">
+                        <Label for="vehicle">
+                            Tipo de vehículo
+                            <span v-if="form.plate" class="text-destructive">*</span>
+                        </Label>
+                        <select id="vehicle" v-model="form.vehicle"
+                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
+                            <option value="">Sin vehículo / A pie</option>
+                            <option value="automovil">Automóvil</option>
+                            <option value="camioneta">Camioneta</option>
+                            <option value="moto">Moto</option>
+                            <option value="bicicleta">Bicicleta</option>
+                        </select>
+                        <InputError :message="form.errors.vehicle" />
+                    </div>
                 </div>
+                <p class="-mt-3 text-xs text-muted-foreground">Si la persona llega a pie, deja la placa vacía.</p>
 
                 <!-- Fechas -->
                 <div class="grid gap-4 sm:grid-cols-2">
