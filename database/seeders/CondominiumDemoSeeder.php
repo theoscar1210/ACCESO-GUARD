@@ -209,9 +209,22 @@ class CondominiumDemoSeeder extends Seeder
         $vehicleTypes = ['ninguno', 'ninguno', 'automovil', 'camioneta', 'moto', 'bicicleta'];
         $plates = ['ABC123', 'XYZ456', 'DEF789', 'GHI012', null, null, null];
 
-        $allResidents = array_merge($propietarios, $residentes);
+        // Inmueble propio de cada propietario y residente (el que tiene asignado o arrendado)
+        $homeByCedula = [];
+        foreach ($propietarios as $i => $p) {
+            $homeByCedula[$p->cedula] = $properties[$i]->number;
+        }
+        foreach ($residentes as $i => $r) {
+            $homeByCedula[$r->cedula] = $properties[$i]->number;
+        }
 
-        for ($day = 29; $day >= 0; $day--) {
+        // La app no permite dos ingresos activos con la misma cédula
+        $activeCedulas = [];
+
+        // Los ingresos no usan firstOrCreate: si ya se sembraron, no se duplican
+        $alreadySeeded = Entry::where('registered_by', $vigilante->username)->exists();
+
+        for ($day = 29; $day >= 0 && ! $alreadySeeded; $day--) {
             $date      = Carbon::now()->subDays($day);
             $numToday  = rand(4, 12);
 
@@ -220,13 +233,15 @@ class CondominiumDemoSeeder extends Seeder
                 $vehicle = $vehicleTypes[array_rand($vehicleTypes)];
                 $plate   = $vehicle !== 'ninguno' ? $plates[array_rand($plates)] : null;
 
-                // Si es propietario/residente, usar datos reales
-                if (in_array($type, ['propietario', 'residente']) && count($allResidents) > 0) {
-                    $person = $allResidents[array_rand($allResidents)];
+                // Propietario o residente real, del tipo elegido, entrando a su propio inmueble
+                $group = $type === 'propietario' ? $propietarios : ($type === 'residente' ? $residentes : []);
+
+                if (count($group) > 0) {
+                    $person = $group[array_rand($group)];
                     $firstName = $person->first_name;
                     $lastName  = $person->last_name;
                     $cedula    = $person->cedula;
-                    $apt       = $properties[array_rand($properties)]->number;
+                    $apt       = $homeByCedula[$cedula];
                 } else {
                     $firstName = ['Juan', 'Pedro', 'Ana', 'Luis', 'Sofia', 'Carlos'][ rand(0, 5)];
                     $lastName  = ['González', 'Pérez', 'Martínez', 'López', 'Rodríguez'][ rand(0, 4)];
@@ -235,6 +250,11 @@ class CondominiumDemoSeeder extends Seeder
                 }
 
                 $entryTime = $date->copy()->setTime(rand(6, 22), rand(0, 59));
+
+                // Los ingresos de hoy no pueden quedar en el futuro
+                if ($entryTime->isFuture()) {
+                    $entryTime = Carbon::now()->subMinutes(rand(5, 180));
+                }
 
                 $entry = Entry::create([
                     'first_name'    => $firstName,
@@ -250,11 +270,23 @@ class CondominiumDemoSeeder extends Seeder
                     'entry_at'      => $entryTime,
                 ]);
 
-                // 80% de los ingresos tienen salida registrada (excepto hoy)
-                if ($day > 0 && rand(1, 10) <= 8) {
+                // 80% de los ingresos tienen salida registrada (excepto hoy); si la
+                // persona ya quedó dentro con otro ingreso, este también sale
+                $hasExit = $day > 0 && rand(1, 10) <= 8;
+                if (! $hasExit && isset($activeCedulas[$cedula])) {
+                    $hasExit = true;
+                }
+                if (! $hasExit) {
+                    $activeCedulas[$cedula] = true;
+                }
+
+                if ($hasExit) {
+                    $exitTime = $entryTime->copy()->addMinutes(rand(30, 480));
+
                     ExitRecord::create([
-                        'entry_id'  => $entry->id,
-                        'exited_at' => $entryTime->copy()->addMinutes(rand(30, 480)),
+                        'entry_id'   => $entry->id,
+                        'exited_at'  => $exitTime->isFuture() ? Carbon::now() : $exitTime,
+                        'exited_by'  => $vigilante->username,
                     ]);
                 }
             }
