@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Condominium;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\App;
 
 class CurrentCondominium
@@ -29,7 +30,7 @@ class CurrentCondominium
      * Aplica scope de condominio a una query si el usuario tiene condominio asignado.
      * Uso: CurrentCondominium::scope($query)
      */
-    public static function scope(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    public static function scope(Builder $query): Builder
     {
         $id = static::id();
 

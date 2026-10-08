@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToCondominium;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class Announcement extends Model
 {
@@ -24,6 +25,6 @@ class Announcement extends Model
     {
         return $this->belongsToMany(User::class, 'announcement_user')
             ->withPivot('read_at')
-            ->using(\Illuminate\Database\Eloquent\Relations\Pivot::class);
+            ->using(Pivot::class);
     }
 }
