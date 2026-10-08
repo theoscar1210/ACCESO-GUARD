@@ -84,8 +84,11 @@ interface MaterialExitRow {
     notes: string | null;
     requested_by: string | null;
     approved_by: string | null;
+    expires_at: string | null;
     executed_by: string | null;
     taken_by: string | null;
+    taken_cedula: string | null;
+    exit_plate: string | null;
     created_at: string;
     executed_at: string | null;
 }
@@ -104,7 +107,9 @@ const props = defineProps<{
 }>();
 
 type Tab = 'inventario' | 'trabajadores' | 'movimientos' | 'material' | 'datos' | 'bitacora';
-const tab = ref<Tab>('inventario');
+// Las notificaciones de material llegan con ?tab=material
+const initialTab = new URLSearchParams(window.location.search).get('tab') as Tab | null;
+const tab = ref<Tab>(initialTab ?? 'inventario');
 const tabs: { key: Tab; label: string }[] = [
     { key: 'inventario', label: 'Inventario' },
     { key: 'trabajadores', label: 'Trabajadores' },
@@ -422,8 +427,8 @@ const pageErrors = computed(() => (page.props.errors ?? {}) as Record<string, st
             <!-- Salidas de material (sobrantes, escombros, devoluciones) -->
             <div v-if="tab === 'material'" class="flex flex-col gap-3">
                 <p class="text-xs text-muted-foreground">
-                    Nada sale de la casa sin autorización. La aprueban el propietario o residente de la casa, el administrador o el superusuario;
-                    el vigilante la marca al registrar la salida de quien se la lleva.
+                    Nada sale de la casa sin autorización. La aprueban el propietario de la casa, el administrador o el superusuario, y vale 48 horas.
+                    Al solicitarla se les avisa por la app, push, correo y WhatsApp; en portería solo la puede retirar alguien con ingreso registrado.
                 </p>
 
                 <ul class="divide-y rounded-xl border bg-card shadow-sm">
@@ -436,7 +441,13 @@ const pageErrors = computed(() => (page.props.errors ?? {}) as Record<string, st
                             <p class="truncate text-xs text-muted-foreground">
                                 Solicitó {{ m.requested_by }} · {{ m.created_at }}
                                 <template v-if="m.approved_by"> · {{ m.status === 'rechazada' ? 'rechazó' : 'aprobó' }} {{ m.approved_by }}</template>
-                                <template v-if="m.status === 'ejecutada'"> · salió con {{ m.taken_by }} ({{ m.executed_at }})</template>
+                                <template v-if="m.status === 'aprobada' && m.expires_at"> · válida hasta {{ m.expires_at }}</template>
+                            </p>
+                            <!-- Retiro: quién, cédula, placa, fecha y hora -->
+                            <p v-if="m.status === 'ejecutada'" class="mt-0.5 text-xs">
+                                Retiró <span class="font-medium">{{ m.taken_by }}</span> · CC {{ m.taken_cedula }}
+                                <template v-if="m.exit_plate"> · placa <span class="font-mono font-semibold">{{ m.exit_plate }}</span></template>
+                                · {{ m.executed_at }}<template v-if="m.executed_by"> · guarda {{ m.executed_by }}</template>
                             </p>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">

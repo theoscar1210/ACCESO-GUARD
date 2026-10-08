@@ -38,8 +38,10 @@
 <body>
 
 <div class="header">
-    <h1>Acta de obra — {{ $work->title }}</h1>
+    <h1>{{ config('app.name') }} — Acta de obra</h1>
     <p>
+        @if($condominium = \App\Support\CurrentCondominium::get()){{ $condominium->name }} · @endif
+        {{ $work->title }} ·
         {{ $date ? 'Movimientos del '.$date->format('d/m/Y') : 'Acta completa de la obra' }}
         · Generada el {{ now()->format('d/m/Y H:i') }} por {{ $generatedBy }}
     </p>
@@ -131,7 +133,15 @@
             <td>{{ ucfirst($x->reason) }}</td>
             <td>{{ ucfirst($x->status) }}</td>
             <td>{{ $x->approver?->full_name ?? '—' }}</td>
-            <td>{{ $x->entry?->full_name ?? '—' }} {{ $x->executed_at?->format('d/m/Y H:i') }}</td>
+            <td>
+                @if($x->entry)
+                    {{ $x->entry->full_name }} · CC {{ $x->entry->cedula }}
+                    @if($x->exit_plate)<br>Placa {{ $x->exit_plate }}@endif
+                    <br>{{ $x->executed_at?->format('d/m/Y H:i') }}
+                @else
+                    —
+                @endif
+            </td>
         </tr>
     @empty
         <tr><td colspan="6" class="empty">Sin salidas de material.</td></tr>
@@ -147,7 +157,7 @@
     </tr>
 </table>
 
-<p class="footer">ACCESO·GUARD — Acta generada automáticamente</p>
+<p class="footer">{{ config('app.name') }} — Acta generada automáticamente</p>
 
 </body>
 </html>

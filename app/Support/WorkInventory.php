@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Entry;
+use App\Models\ExitRecord;
 use App\Models\ItemMovement;
 use App\Models\MaterialExit;
 use App\Models\User;
@@ -154,14 +155,61 @@ class WorkInventory
         }
     }
 
-    /** Salidas de material aprobadas y pendientes de ejecutar en la casa de una obra */
+    /** Salidas de material aprobadas y vigentes (48 h) en la casa de una obra */
     public static function approvedMaterialExits(int $propertyId): Collection
     {
         return MaterialExit::with('requester', 'approver')
-            ->where('status', 'aprobada')
+            ->retirable()
             ->whereHas('work', fn ($q) => $q->where('property_id', $propertyId))
             ->oldest()
             ->get();
+    }
+
+    /**
+     * Retiro de material por cualquier persona con ingreso activo: queda su nombre,
+     * cédula, placa, fecha y hora, y se registra su salida en ese mismo momento.
+     */
+    public static function retire(MaterialExit $exit, Entry $entry, ?string $plate, User $guard): MaterialExit
+    {
+        $exit = MaterialExit::with('work')->lockForUpdate()->findOrFail($exit->id);
+        $entry->loadMissing('workWorker.work', 'exit');
+
+        if ($exit->status !== 'aprobada' || $exit->effective_status === 'vencida') {
+            throw ValidationException::withMessages([
+                'material_exit' => 'Esta salida de material no está aprobada o ya venció (la aprobación dura '.MaterialExit::VALID_HOURS.' horas).',
+            ]);
+        }
+
+        if ($entry->exit) {
+            throw ValidationException::withMessages([
+                'entry_id' => 'Solo puede retirar el material una persona con ingreso registrado que siga dentro.',
+            ]);
+        }
+
+        if ($entry->workWorker && self::ownToolsInside($entry->workWorker) > 0) {
+            throw ValidationException::withMessages([
+                'entry_id' => "{$entry->full_name} tiene herramientas dentro: regístralo desde la lista de salidas para decidir qué pasa con ellas.",
+            ]);
+        }
+
+        $exitPlate = filled($plate) ? strtoupper(trim($plate)) : $entry->plate;
+
+        $exit->forceFill([
+            'status' => 'ejecutada',
+            'entry_id' => $entry->id,
+            'exit_plate' => $exitPlate,
+            'executed_by' => $guard->id,
+            'executed_at' => now(),
+        ])->save();
+
+        ExitRecord::create([
+            'entry_id' => $entry->id,
+            'exited_at' => now(),
+            'exited_by' => $guard->username,
+            'observations' => "Retiró material: {$exit->description} ({$exit->quantity})".($exitPlate ? " · placa {$exitPlate}" : ''),
+        ]);
+
+        return $exit;
     }
 
     /**
@@ -206,27 +254,36 @@ class WorkInventory
      *
      * @param  Collection<int, Entry>  $entries
      * @param  array<int, array{entry_id: int, id: int}>  $exits
+     * @return Collection<int, MaterialExit> salidas ejecutadas
      */
-    public static function registerMaterialExits(Collection $entries, array $exits, User $guard): void
+    public static function registerMaterialExits(Collection $entries, array $exits, User $guard): Collection
     {
+        $executed = collect();
+
         foreach ($exits as $row) {
             $entry = $entries->firstWhere('id', (int) $row['entry_id']);
             $exit = MaterialExit::with('work')->lockForUpdate()->find($row['id']);
             $work = $entry?->relatedWork();
 
-            if (! $entry || ! $exit || ! $work || $exit->status !== 'aprobada' || $exit->work->property_id !== $work->property_id) {
+            if (! $entry || ! $exit || ! $work || $exit->status !== 'aprobada' || $exit->effective_status === 'vencida'
+                || $exit->work->property_id !== $work->property_id) {
                 throw ValidationException::withMessages([
-                    'material_exits' => 'Una de las salidas de material no está aprobada o no corresponde a la casa de quien sale.',
+                    'material_exits' => 'Una de las salidas de material no está aprobada, ya venció o no corresponde a la casa de quien sale.',
                 ]);
             }
 
             $exit->forceFill([
                 'status' => 'ejecutada',
                 'entry_id' => $entry->id,
+                'exit_plate' => $entry->plate,
                 'executed_by' => $guard->id,
                 'executed_at' => now(),
             ])->save();
+
+            $executed->push($exit);
         }
+
+        return $executed;
     }
 
     /** Cantidad de herramientas a nombre del trabajador que siguen dentro de su casa */

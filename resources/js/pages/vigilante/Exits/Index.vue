@@ -15,6 +15,8 @@ import {
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import ExitToolsDialog from '@/components/ExitToolsDialog.vue';
 import type { MaterialExitTake, ToolMove } from '@/components/ExitToolsDialog.vue';
+import MaterialRetireDialog from '@/components/MaterialRetireDialog.vue';
+import type { RetirableExit } from '@/components/MaterialRetireDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFitToViewport } from '@/composables/useFitToViewport';
@@ -33,7 +35,10 @@ interface Entry {
     work: { title: string; property: string; is_supplier: boolean; tools_inside: number; material_exits: number } | null;
 }
 
-const props = defineProps<{ inside: Entry[] }>();
+const props = defineProps<{ inside: Entry[]; material_exits: RetirableExit[] }>();
+
+// Retiro de material autorizado por cualquier persona con ingreso activo
+const retireOpen = ref(false);
 
 const selected = ref<number[]>([]);
 
@@ -264,20 +269,31 @@ const vehicleLabel: Record<string, string> = {
         >
             <!-- Encabezado -->
             <div class="flex items-center justify-between gap-3">
-                <h1 class="text-lg font-bold sm:text-xl">
+                <h1 class="min-w-0 truncate text-lg font-bold sm:text-xl">
                     Salidas
                     <span class="ml-1 text-sm font-normal text-muted-foreground">
                         {{ inside.length }} dentro
                     </span>
                 </h1>
-                <button
-                    v-if="filtered.length > 0"
-                    type="button"
-                    @click="toggleAll"
-                    class="text-sm text-primary underline-offset-4 hover:underline"
-                >
-                    {{ allSelected ? 'Quitar selección' : `Seleccionar todos (${filtered.length})` }}
-                </button>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button
+                        v-if="material_exits.length"
+                        type="button"
+                        @click="retireOpen = true"
+                        class="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                        title="Retiro de material autorizado"
+                    >
+                        <PackageCheck class="h-4 w-4" /> Retiro ({{ material_exits.length }})
+                    </button>
+                    <button
+                        v-if="filtered.length > 0"
+                        type="button"
+                        @click="toggleAll"
+                        class="text-sm text-primary underline-offset-4 hover:underline"
+                    >
+                        {{ allSelected ? 'Quitar' : `Todos (${filtered.length})` }}
+                    </button>
+                </div>
             </div>
 
             <!-- Sin personas dentro -->
@@ -464,6 +480,8 @@ const vehicleLabel: Record<string, string> = {
                 </div>
             </template>
         </div>
+
+        <MaterialRetireDialog v-model:open="retireOpen" :exits="material_exits" :inside="inside" />
 
         <ExitToolsDialog
             v-model:open="toolsDialogOpen"

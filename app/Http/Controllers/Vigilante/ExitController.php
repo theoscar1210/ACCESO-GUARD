@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Entry;
 use App\Models\ExitRecord;
 use App\Models\MaterialExit;
+use App\Support\MaterialExitNotifier;
 use App\Support\WorkInventory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,11 +19,13 @@ class ExitController extends Controller
 {
     public function index(): Response
     {
-        // Salidas de material aprobadas, por casa, para avisar al guarda
-        $materialExitsByProperty = MaterialExit::where('status', 'aprobada')
-            ->with('work:id,property_id')
-            ->get()
-            ->countBy(fn ($m) => $m->work->property_id);
+        // Salidas de material aprobadas y vigentes: listas para retirar en portería
+        $retirable = MaterialExit::retirable()
+            ->with('work.property', 'requester', 'approver')
+            ->oldest('approved_at')
+            ->get();
+
+        $materialExitsByProperty = $retirable->countBy(fn ($m) => $m->work->property_id);
 
         $inside = Entry::with('exit', 'workWorker.work.property', 'work.property')
             ->active()
@@ -48,7 +51,34 @@ class ExitController extends Controller
                 ] : null,
             ]);
 
-        return Inertia::render('vigilante/Exits/Index', compact('inside'));
+        return Inertia::render('vigilante/Exits/Index', [
+            'inside' => $inside,
+            'material_exits' => $retirable->map->payload(),
+        ]);
+    }
+
+    /**
+     * Retiro de material autorizado por una persona con ingreso activo:
+     * queda nombre, cédula, placa, fecha y hora, y se registra su salida.
+     */
+    public function retireMaterial(Request $request, MaterialExit $materialExit): RedirectResponse
+    {
+        $data = $request->validate([
+            'entry_id' => 'required|integer|exists:entries,id',
+            'plate' => 'nullable|string|max:20',
+        ], ['entry_id.required' => 'Selecciona la persona que retira el material.']);
+
+        $exit = DB::transaction(fn () => WorkInventory::retire(
+            $materialExit,
+            Entry::findOrFail($data['entry_id']),
+            $data['plate'] ?? null,
+            $request->user(),
+        ));
+
+        MaterialExitNotifier::retired($exit);
+
+        return redirect()->route('vigilante.exits.index')
+            ->with('success', "Material retirado y salida registrada: {$exit->description}.");
     }
 
     /** Herramientas que puede sacar un trabajador: las suyas y las de compañeros de su casa */
@@ -73,12 +103,14 @@ class ExitController extends Controller
             'material_exits.*.id' => 'required|integer|distinct',
         ]);
 
-        $count = DB::transaction(function () use ($request) {
+        $retired = collect();
+
+        $count = DB::transaction(function () use ($request, &$retired) {
             $entries = Entry::with('workWorker.work', 'work')->active()->whereIn('id', $request->entry_ids)->get();
 
             // Primero herramientas y material: si algo no cuadra no se registra ninguna salida
             WorkInventory::registerExit($entries, $request->input('tool_moves', []), $request->user());
-            WorkInventory::registerMaterialExits($entries, $request->input('material_exits', []), $request->user());
+            $retired = WorkInventory::registerMaterialExits($entries, $request->input('material_exits', []), $request->user());
 
             foreach ($entries as $entry) {
                 ExitRecord::create([
@@ -91,6 +123,9 @@ class ExitController extends Controller
 
             return $entries->count();
         });
+
+        // El propietario y el administrador quedan avisados de cada material retirado
+        $retired->each(fn ($exit) => MaterialExitNotifier::retired($exit));
 
         $msg = $count === 1 ? '1 salida registrada.' : "{$count} salidas registradas.";
 

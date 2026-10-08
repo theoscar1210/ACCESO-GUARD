@@ -118,7 +118,7 @@ class WorkManagementTest extends TestCase
         $work->refresh();
         $this->assertSame('aprobada', $work->status);
         $this->assertSame($admin->id, $work->decided_by);
-        $this->assertSame(['aprobada', 'suspendida', 'cerrada', 'reabierta'], $work->logs()->oldest('id')->pluck('action')->all());
+        $this->assertSame(['aprobada', 'suspendida', 'cerrada', 'reabierta'], $work->logs()->reorder('id')->pluck('action')->all());
         $this->assertDatabaseHas('work_logs', ['action' => 'suspendida', 'notes' => 'Ruido fuera de horario']);
 
         $this->actingAs($admin)->post("/works/{$work->id}/decision", ['action' => 'aprobar'])->assertSessionHasErrors('action');

@@ -47,6 +47,8 @@ class HandleInertiaRequests extends Middleware
                         : null,
                 ]) : null,
             ],
+            // Contador de la campana de notificaciones
+            'notifications_unread' => fn () => $request->user()?->unreadNotifications()->count() ?? 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => $request->session()->get('success'),

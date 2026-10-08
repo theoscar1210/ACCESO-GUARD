@@ -29,7 +29,8 @@ self.addEventListener('push', (event) => {
         icon: '/icon-192.png',
         badge: '/badge-72.png',
         vibrate: [100, 50, 100],
-        data: { url: data.url ?? '/' },
+        // El servidor envía la URL en data.url (WebPushMessage) o en url
+        data: { url: data.url ?? data.data?.url ?? '/' },
         actions: [
             { action: 'open', title: 'Ver' },
             { action: 'close', title: 'Cerrar' },

@@ -94,12 +94,12 @@ class WorkPermissions
 
     /**
      * Aprobar salidas de material: administrador, superusuario y el propietario
-     * o residente de la casa. El vigilante solo puede solicitarlas.
+     * de la casa. Residente y vigilante solo pueden solicitarlas.
      */
     public static function canApproveMaterialExit(User $user, Work $work): bool
     {
         return self::canDecide($user)
-            || (self::isRestrictedToOwnProperty($user) && self::canView($user, $work));
+            || ($user->hasRole('Propietario') && $user->ownedProperties()->whereKey($work->property_id)->exists());
     }
 
     public static function canView(User $user, Work $work): bool

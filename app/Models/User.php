@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCondominium;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -95,6 +96,26 @@ class User extends Authenticatable
     }
 
     /** Push subscriptions para notificaciones web */
+    /** Suscripciones push del usuario (canal WebPush) */
+    public function routeNotificationForWebPush(): Collection
+    {
+        return $this->pushSubscriptions()->get();
+    }
+
+    /** Teléfono en formato internacional para WhatsApp: 3001234567 → 573001234567 */
+    public function routeNotificationForWhatsApp(): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $this->phone);
+
+        if (strlen($digits) < 7) {
+            return null;
+        }
+
+        $countryCode = (string) config('services.whatsapp.country_code', '57');
+
+        return str_starts_with($digits, $countryCode) && strlen($digits) > 10 ? $digits : $countryCode.$digits;
+    }
+
     public function pushSubscriptions(): HasMany
     {
         return $this->hasMany(PushSubscription::class);

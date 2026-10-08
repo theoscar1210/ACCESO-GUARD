@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use NotificationChannels\WebPush\PushSubscription as WebPushSubscription;
 
-class PushSubscription extends Model
+/**
+ * Suscripción de un navegador a las notificaciones push. Extiende el modelo del
+ * paquete webpush para que su canal pueda enviar y limpiar las suscripciones vencidas.
+ */
+class PushSubscription extends WebPushSubscription
 {
+    protected $table = 'push_subscriptions';
+
     protected $fillable = [
         'user_id', 'endpoint', 'public_key', 'auth_token', 'content_encoding',
     ];

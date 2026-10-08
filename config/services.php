@@ -28,6 +28,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // WhatsApp Cloud API (Meta). Las plantillas deben estar aprobadas en Meta Business.
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+        'language' => env('WHATSAPP_LANGUAGE', 'es'),
+        'country_code' => env('WHATSAPP_COUNTRY_CODE', '57'),
+        'templates' => [
+            'material_exit_requested' => env('WHATSAPP_TEMPLATE_MATERIAL_REQUESTED', 'salida_material_solicitada'),
+            'material_exit_retired' => env('WHATSAPP_TEMPLATE_MATERIAL_RETIRED', 'salida_material_retirada'),
+        ],
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

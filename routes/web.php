@@ -12,6 +12,7 @@ use App\Http\Controllers\CarnetController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MaterialExitController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Propietario\AuthorizationController as PropietarioAuthorizationController;
 use App\Http\Controllers\Propietario\DashboardController as PropietarioDashboardController;
 use App\Http\Controllers\Propietario\HistoryController as PropietarioHistoryController;
@@ -43,6 +44,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Avatar / foto de perfil
     Route::post('settings/avatar', [AvatarController::class, 'update'])->name('settings.avatar.update');
     Route::delete('settings/avatar', [AvatarController::class, 'destroy'])->name('settings.avatar.destroy');
+
+    // Notificaciones dentro de la app (campana)
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/{id}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
 
     // Push subscriptions (cualquier usuario autenticado)
     Route::post('push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
@@ -102,6 +108,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('exits', [ExitController::class, 'index'])->name('exits.index');
         Route::post('exits', [ExitController::class, 'store'])->name('exits.store');
         Route::get('exits/{entry}/tools', [ExitController::class, 'tools'])->name('exits.tools');
+        Route::post('material-exits/{materialExit}/retire', [ExitController::class, 'retireMaterial'])->name('material-exits.retire');
         Route::get('authorizations', [VigilanteAuthorizationController::class, 'index'])->name('authorizations.index');
         Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
         Route::post('reports/export', [ReportController::class, 'export'])->name('reports.export');

@@ -34,6 +34,7 @@ export const workLogLabel: Record<string, string> = {
     salida_material_solicitada: 'Solicitó salida de material',
     salida_material_aprobada: 'Aprobó salida de material',
     salida_material_rechazada: 'Rechazó salida de material',
+    salida_material_vencida: 'Venció salida de material (48 h sin retiro)',
 };
 
 export const materialReasonLabel: Record<string, string> = {
@@ -47,7 +48,8 @@ export const materialStatusLabel: Record<string, string> = {
     pendiente: 'Pendiente',
     aprobada: 'Aprobada',
     rechazada: 'Rechazada',
-    ejecutada: 'Salió',
+    ejecutada: 'Retirado',
+    vencida: 'Vencida',
 };
 
 export const materialStatusClass: Record<string, string> = {
@@ -55,6 +57,7 @@ export const materialStatusClass: Record<string, string> = {
     aprobada: 'bg-emerald-100 text-emerald-800',
     rechazada: 'bg-red-100 text-red-700',
     ejecutada: 'bg-slate-200 text-slate-700',
+    vencida: 'bg-orange-100 text-orange-800',
 };
 
 export const movementLabel: Record<string, string> = {
