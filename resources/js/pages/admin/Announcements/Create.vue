@@ -22,7 +22,7 @@ function submit() {
 
             <div class="flex items-center gap-3">
                 <Link href="/admin/announcements"
-                    class="flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
+                    class="flex items-center gap-1.5 py-2 text-sm text-muted-foreground transition hover:text-foreground">
                     <ArrowLeft class="h-4 w-4" />
                     Volver
                 </Link>

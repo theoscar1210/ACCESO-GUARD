@@ -222,9 +222,13 @@
     border-radius: 14px;
     border: 1px solid rgba(30, 111, 255, 0.15);
     background: var(--card);
-    padding: 1.5rem;
+    padding: 0.875rem;
     box-shadow: 0 2px 16px rgba(13,24,48,0.06);
     transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+/* En móvil las tarjetas van de a dos por fila: menos relleno para que quepan */
+@media (min-width: 640px) {
+    .stat-card { padding: 1.5rem; }
 }
 .stat-card:hover {
     border-color: rgba(30, 111, 255, 0.35);

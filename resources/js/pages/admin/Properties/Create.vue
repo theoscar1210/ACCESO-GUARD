@@ -22,7 +22,7 @@ function submit() {
         <Head title="Nuevo Inmueble" />
         <div class="mx-auto max-w-xl p-4 sm:p-6">
             <div class="mb-6 flex items-center gap-4">
-                <Link href="/admin/properties" class="text-muted-foreground hover:text-foreground"
+                <Link href="/admin/properties" class="shrink-0 py-2 text-muted-foreground hover:text-foreground"
                     >← Volver</Link
                 >
                 <div>

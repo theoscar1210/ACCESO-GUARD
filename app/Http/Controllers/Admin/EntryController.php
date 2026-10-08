@@ -31,7 +31,7 @@ class EntryController extends Controller
             }))
             ->orderByDesc('entry_at');
 
-        $entries = $query->paginate(25)->withQueryString()->through(fn ($e) => [
+        $entries = $query->paginate(25)->onEachSide(1)->withQueryString()->through(fn ($e) => [
             'id' => $e->id,
             'full_name' => $e->full_name,
             'cedula' => $e->cedula,

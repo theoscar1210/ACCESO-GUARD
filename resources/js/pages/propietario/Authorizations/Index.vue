@@ -40,6 +40,12 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     vencido: 'outline',
 };
 
+const statusLabel: Record<string, string> = {
+    activo: 'Activa',
+    usado: 'Usada',
+    vencido: 'Vencida',
+};
+
 const typeLabel: Record<string, string> = {
     visitante: 'Visitante',
     autorizado: 'Autorizado',
@@ -74,7 +80,7 @@ const typeLabel: Record<string, string> = {
                 No tienes autorizaciones creadas.
                 <Link
                     href="/propietario/authorizations/create"
-                    class="ml-1 text-primary underline"
+                    class="ml-1 inline-block py-2 text-primary underline"
                 >
                     Crear una
                 </Link>
@@ -92,9 +98,10 @@ const typeLabel: Record<string, string> = {
                             <span class="font-semibold">{{
                                 auth.full_name
                             }}</span>
-                            <Badge :variant="statusVariant[auth.status]">{{
-                                auth.status
-                            }}</Badge>
+                            <Badge
+                                :variant="statusVariant[auth.status]"
+                                :class="auth.status === 'vencido' ? 'border-red-200 bg-red-50 text-red-700' : ''"
+                            >{{ statusLabel[auth.status] ?? auth.status }}</Badge>
                             <Badge variant="outline">{{
                                 typeLabel[auth.type]
                             }}</Badge>

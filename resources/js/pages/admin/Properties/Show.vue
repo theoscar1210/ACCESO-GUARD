@@ -184,7 +184,7 @@ const relatedUsers = [
         <div class="p-4 sm:p-6">
             <!-- Header -->
             <div class="mb-6 flex items-center gap-4">
-                <Link href="/admin/properties" class="text-muted-foreground hover:text-foreground"
+                <Link href="/admin/properties" class="shrink-0 py-2 text-muted-foreground hover:text-foreground"
                     >← Volver</Link
                 >
                 <div>
@@ -199,11 +199,12 @@ const relatedUsers = [
             </div>
 
             <!-- Tabs -->
-            <div class="mb-6 flex flex-wrap gap-2 border-b">
+            <!-- Una sola fila; en móvil se desliza en vez de partirse en dos líneas -->
+            <div class="-mx-4 mb-6 flex gap-1 overflow-x-auto border-b px-4 sm:mx-0 sm:gap-2 sm:px-0">
                 <button
                     v-for="tab in (['datos', 'propietarios', 'residente', 'familiar'] as const)"
                     :key="tab"
-                    class="px-4 py-2 text-sm font-medium capitalize transition-colors"
+                    class="shrink-0 px-3 py-2.5 text-sm font-medium whitespace-nowrap capitalize transition-colors sm:px-4"
                     :class="
                         activeTab === tab
                             ? 'border-b-2 border-primary text-primary'

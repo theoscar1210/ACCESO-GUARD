@@ -22,7 +22,7 @@ class HistoryController extends Controller
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('entry_at', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('entry_at', '<=', $request->date_to))
             ->orderByDesc('entry_at')
-            ->paginate(20)
+            ->paginate(20)->onEachSide(1)
             ->withQueryString()
             ->through(fn ($e) => [
                 'id'       => $e->id,

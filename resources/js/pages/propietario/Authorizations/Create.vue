@@ -29,7 +29,7 @@ function submit() {
 
         <div class="mx-auto max-w-2xl p-4 sm:p-6">
             <div class="mb-6 flex flex-col gap-1">
-                <Link href="/propietario/authorizations" class="text-sm text-muted-foreground hover:text-foreground">← Mis Autorizaciones</Link>
+                <Link href="/propietario/authorizations" class="self-start py-2 text-sm text-muted-foreground hover:text-foreground">← Mis Autorizaciones</Link>
                 <h1 class="text-2xl font-bold">Nueva Autorización</h1>
                 <p class="text-sm text-muted-foreground">
                     Autoriza el ingreso de una persona a tu apartamento

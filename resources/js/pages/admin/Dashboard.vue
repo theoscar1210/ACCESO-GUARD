@@ -33,6 +33,7 @@ defineProps<{ stats: Stats; recent: RecentEntry[] }>();
 
 const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     propietario: 'default',
+    residente: 'default',
     autorizado: 'secondary',
     visitante: 'outline',
 };
@@ -59,13 +60,13 @@ const typeLabel: Record<string, string> = {
             </div>
 
             <!-- Stats principales -->
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 <div class="stat-card stat-card-accent">
                     <div class="absolute right-4 top-4 rounded-xl bg-primary/15 p-2">
                         <Activity class="h-4 w-4 text-primary" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Dentro ahora</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight text-primary">{{ stats.inside }}</p>
+                    <p class="mt-1.5 text-3xl font-bold sm:text-4xl tracking-tight text-primary">{{ stats.inside }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">{{ stats.entries_today }} ingresos hoy</p>
                 </div>
                 <div class="stat-card">
@@ -73,7 +74,7 @@ const typeLabel: Record<string, string> = {
                         <Users class="h-4 w-4 text-blue-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Propietarios</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight">{{ stats.by_type.propietario }}</p>
+                    <p class="mt-1.5 text-3xl font-bold sm:text-4xl tracking-tight">{{ stats.by_type.propietario }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">dentro del edificio</p>
                 </div>
                 <div class="stat-card">
@@ -81,7 +82,7 @@ const typeLabel: Record<string, string> = {
                         <Shield class="h-4 w-4 text-green-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Autorizados</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight">{{ stats.by_type.autorizado }}</p>
+                    <p class="mt-1.5 text-3xl font-bold sm:text-4xl tracking-tight">{{ stats.by_type.autorizado }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">dentro del edificio</p>
                 </div>
                 <div class="stat-card">
@@ -89,62 +90,62 @@ const typeLabel: Record<string, string> = {
                         <Users class="h-4 w-4 text-amber-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Visitantes</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight">{{ stats.by_type.visitante }}</p>
+                    <p class="mt-1.5 text-3xl font-bold sm:text-4xl tracking-tight">{{ stats.by_type.visitante }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">dentro del edificio</p>
                 </div>
             </div>
 
             <!-- Stats secundarias -->
-            <div class="grid gap-4 sm:grid-cols-3">
+            <div class="grid grid-cols-3 gap-2 sm:gap-4">
                 <div class="stat-card">
-                    <div class="absolute right-4 top-4 rounded-xl bg-violet-500/10 p-2">
+                    <div class="absolute right-4 top-4 hidden rounded-xl bg-violet-500/10 p-2 sm:block">
                         <Users class="h-4 w-4 text-violet-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Usuarios registrados</p>
-                    <p class="mt-1.5 text-3xl font-bold tracking-tight">{{ stats.users }}</p>
+                    <p class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">{{ stats.users }}</p>
                 </div>
                 <div class="stat-card">
-                    <div class="absolute right-4 top-4 rounded-xl bg-teal-500/10 p-2">
+                    <div class="absolute right-4 top-4 hidden rounded-xl bg-teal-500/10 p-2 sm:block">
                         <Building2 class="h-4 w-4 text-teal-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Inmuebles</p>
-                    <p class="mt-1.5 text-3xl font-bold tracking-tight">{{ stats.properties }}</p>
+                    <p class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">{{ stats.properties }}</p>
                 </div>
                 <div class="stat-card">
-                    <div class="absolute right-4 top-4 rounded-xl bg-emerald-500/10 p-2">
+                    <div class="absolute right-4 top-4 hidden rounded-xl bg-emerald-500/10 p-2 sm:block">
                         <Shield class="h-4 w-4 text-emerald-500" />
                     </div>
-                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Autorizaciones activas</p>
-                    <p class="mt-1.5 text-3xl font-bold tracking-tight">{{ stats.authorizations }}</p>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground"><span class="sm:hidden">Autoriz. activas</span><span class="hidden sm:inline">Autorizaciones activas</span></p>
+                    <p class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">{{ stats.authorizations }}</p>
                 </div>
             </div>
 
             <!-- Accesos rápidos -->
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="grid grid-cols-3 gap-2 sm:gap-3">
                 <Link href="/admin/users"
-                    class="flex items-center gap-4 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-transparent p-4 transition-all hover:border-violet-400 hover:shadow-[0_4px_20px_rgba(139,92,246,0.12)]"
+                    class="flex flex-col items-center gap-2 rounded-xl border p-3 text-center sm:flex-row sm:gap-4 sm:p-4 sm:text-left border-violet-200 bg-gradient-to-br from-violet-50 to-transparent transition-all hover:border-violet-400 hover:shadow-[0_4px_20px_rgba(139,92,246,0.12)]"
                 >
                     <div class="rounded-xl bg-violet-500 p-2.5 shrink-0"><Users class="h-5 w-5 text-white" /></div>
                     <div class="min-w-0">
-                        <p class="font-semibold truncate">Gestionar Usuarios</p>
+                        <p class="text-sm leading-tight font-semibold sm:truncate sm:text-base">Gestionar Usuarios</p>
                         <p class="text-xs text-muted-foreground">{{ stats.users }} usuarios</p>
                     </div>
                 </Link>
                 <Link href="/admin/properties"
-                    class="flex items-center gap-4 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-transparent p-4 transition-all hover:border-teal-400 hover:shadow-[0_4px_20px_rgba(20,184,166,0.12)]"
+                    class="flex flex-col items-center gap-2 rounded-xl border p-3 text-center sm:flex-row sm:gap-4 sm:p-4 sm:text-left border-teal-200 bg-gradient-to-br from-teal-50 to-transparent transition-all hover:border-teal-400 hover:shadow-[0_4px_20px_rgba(20,184,166,0.12)]"
                 >
                     <div class="rounded-xl bg-teal-500 p-2.5 shrink-0"><Building2 class="h-5 w-5 text-white" /></div>
                     <div class="min-w-0">
-                        <p class="font-semibold truncate">Inmuebles</p>
+                        <p class="text-sm leading-tight font-semibold sm:truncate sm:text-base">Inmuebles</p>
                         <p class="text-xs text-muted-foreground">{{ stats.properties }} registrados</p>
                     </div>
                 </Link>
                 <Link href="/admin/entries"
-                    class="flex items-center gap-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4 transition-all hover:border-primary/40 hover:shadow-[0_4px_20px_rgba(30,111,255,0.12)]"
+                    class="flex flex-col items-center gap-2 rounded-xl border p-3 text-center sm:flex-row sm:gap-4 sm:p-4 sm:text-left border-primary/20 bg-gradient-to-br from-primary/5 to-transparent transition-all hover:border-primary/40 hover:shadow-[0_4px_20px_rgba(30,111,255,0.12)]"
                 >
                     <div class="rounded-xl bg-primary p-2.5 shrink-0"><ClipboardList class="h-5 w-5 text-white" /></div>
                     <div class="min-w-0">
-                        <p class="font-semibold truncate">Historial de Ingresos</p>
+                        <p class="text-sm leading-tight font-semibold sm:truncate sm:text-base">Historial de Ingresos</p>
                         <p class="text-xs text-muted-foreground">{{ stats.entries_today }} hoy</p>
                     </div>
                 </Link>
@@ -159,12 +160,30 @@ const typeLabel: Record<string, string> = {
                         <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{{ recent.length }}</span>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
+                <!-- Móvil: lista -->
+                <ul class="divide-y sm:hidden">
+                    <li v-for="e in recent" :key="e.id" class="flex items-center justify-between gap-2 px-4 py-2.5">
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-medium">{{ e.full_name }}</p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{ e.apartment }} · {{ e.entry_at }}
+                                <span v-if="e.is_inside" class="font-medium text-emerald-600">· Dentro</span>
+                            </p>
+                        </div>
+                        <Badge :variant="typeVariant[e.type]" class="shrink-0">{{ typeLabel[e.type] ?? e.type }}</Badge>
+                    </li>
+                    <li v-if="recent.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No hay ingresos registrados hoy.
+                    </li>
+                </ul>
+
+                <!-- Tablet y PC: tabla -->
+                <div class="hidden overflow-x-auto sm:block">
                     <table class="data-table w-full text-sm">
                         <thead>
                             <tr>
                                 <th>Nombre</th>
-                                <th>Apto</th>
+                                <th>Destino</th>
                                 <th>Tipo</th>
                                 <th>Hora</th>
                                 <th>Estado</th>

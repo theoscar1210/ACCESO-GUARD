@@ -65,7 +65,51 @@ const typeLabel: Record<string, string> = {
                 </Link>
             </div>
 
-            <div class="overflow-x-auto rounded-xl border bg-card shadow-sm">
+            <!-- Móvil y tablet: tarjetas -->
+            <div class="grid gap-2 sm:grid-cols-2 lg:hidden">
+                <div
+                    v-for="p in properties"
+                    :key="p.id"
+                    class="flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm"
+                >
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="font-semibold">
+                                {{ p.number }}
+                                <span v-if="p.block" class="font-normal text-muted-foreground">· {{ p.block }}</span>
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                Propietario:
+                                <span class="text-foreground">{{ p.owners.length ? p.owners.map(o => o.full_name).join(', ') : 'Sin asignar' }}</span>
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                Residente:
+                                <span :class="p.tenant ? 'text-purple-600 dark:text-purple-400' : ''">{{ p.tenant?.full_name ?? '—' }}</span>
+                            </p>
+                        </div>
+                        <span class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            {{ typeLabel[p.type] ?? p.type }}
+                        </span>
+                    </div>
+                    <div class="flex gap-2">
+                        <Link :href="`/admin/properties/${p.id}`" class="flex-1">
+                            <Button variant="outline" class="h-10 w-full">Ver</Button>
+                        </Link>
+                        <Button variant="destructive" class="h-10 flex-1" @click="askDestroy(p.id)">
+                            Eliminar
+                        </Button>
+                    </div>
+                </div>
+                <p
+                    v-if="properties.length === 0"
+                    class="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground sm:col-span-2"
+                >
+                    No hay inmuebles registrados.
+                </p>
+            </div>
+
+            <!-- PC: tabla -->
+            <div class="hidden overflow-x-auto rounded-xl border bg-card shadow-sm lg:block">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b bg-muted/50">

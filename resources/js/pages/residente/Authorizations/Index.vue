@@ -76,13 +76,44 @@ const typeClass: Record<string, string> = {
                 class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-muted-foreground/20 py-16 text-center">
                 <Shield class="h-10 w-10 text-muted-foreground/30" />
                 <p class="text-sm text-muted-foreground">No tienes autorizaciones creadas.</p>
-                <Link href="/residente/authorizations/create" class="text-sm text-primary underline">
+                <Link href="/residente/authorizations/create" class="py-2 text-sm text-primary underline">
                     Crear una ahora
                 </Link>
             </div>
 
-            <!-- Lista -->
-            <div v-else class="overflow-hidden rounded-xl border border-primary/10 bg-card shadow-sm">
+            <!-- Móvil: tarjetas -->
+            <div v-if="authorizations.length > 0" class="grid gap-2 md:hidden">
+                <div v-for="a in authorizations" :key="a.id" class="flex flex-col gap-1.5 rounded-xl border bg-card p-3 shadow-sm">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="truncate font-semibold">{{ a.full_name }}</p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                CC {{ a.cedula }}
+                                <span v-if="a.plate" class="font-mono font-semibold text-foreground">· 🚗 {{ a.plate }}</span>
+                            </p>
+                        </div>
+                        <span :class="['shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold', statusClass[a.status] ?? 'bg-muted text-muted-foreground']">
+                            {{ statusLabel[a.status] ?? a.status }}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 text-xs">
+                        <span class="text-muted-foreground">
+                            <span :class="['mr-1 rounded-full px-2 py-0.5 font-semibold', typeClass[a.type] ?? 'bg-muted text-muted-foreground']">{{ typeLabel[a.type] ?? a.type }}</span>
+                            {{ a.start_date }}{{ a.end_date ? ` → ${a.end_date}` : ' · Sin vencimiento' }}
+                        </span>
+                        <button
+                            v-if="a.status === 'activo'"
+                            @click="askDestroy(a.id)"
+                            class="h-9 shrink-0 rounded-md px-2 text-destructive hover:bg-destructive/10"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tablet y PC: tabla -->
+            <div v-if="authorizations.length > 0" class="hidden overflow-hidden rounded-xl border border-primary/10 bg-card shadow-sm md:block">
                 <div class="overflow-x-auto">
                     <table class="data-table w-full text-sm">
                         <thead>

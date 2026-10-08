@@ -86,27 +86,73 @@ function confirmDelete() {
                 ><X class="h-4 w-4" /></button>
             </div>
 
-            <div class="overflow-x-auto rounded-xl border bg-card shadow-sm">
+            <!-- Móvil y tablet: tarjetas -->
+            <div class="grid gap-2 sm:grid-cols-2 lg:hidden">
+                <div
+                    v-for="u in filtered()"
+                    :key="u.id"
+                    class="flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm"
+                >
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="truncate font-semibold">{{ u.full_name }}</p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{ u.username }} · CC {{ u.cedula }}
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">{{ u.email }}</p>
+                        </div>
+                        <span
+                            :class="[
+                                'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                                roleBadge[u.role] ?? 'bg-muted text-muted-foreground',
+                            ]"
+                        >
+                            {{ u.role }}
+                        </span>
+                    </div>
+                    <div class="flex gap-2">
+                        <Link :href="`/admin/users/${u.id}/edit`" class="flex-1">
+                            <Button variant="outline" class="h-10 w-full">Editar</Button>
+                        </Link>
+                        <Button
+                            variant="destructive"
+                            class="h-10 flex-1"
+                            @click="askDestroy(u.id, u.full_name)"
+                        >
+                            Eliminar
+                        </Button>
+                    </div>
+                </div>
+                <p
+                    v-if="filtered().length === 0"
+                    class="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground sm:col-span-2"
+                >
+                    No se encontraron usuarios.
+                </p>
+            </div>
+
+            <!-- PC: tabla -->
+            <div class="hidden overflow-x-auto rounded-xl border bg-card shadow-sm lg:block">
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50">
                         <tr>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">
                                 Nombre
                             </th>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">
                                 Usuario
                             </th>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">
                                 Cédula
                             </th>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">
                                 Correo
                             </th>
-                            <th class="px-5 py-3 text-left font-medium">Rol</th>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">Rol</th>
+                            <th class="hidden px-4 py-3 text-left font-medium 2xl:table-cell">
                                 Creado
                             </th>
-                            <th class="px-5 py-3 text-left font-medium">
+                            <th class="px-4 py-3 text-left font-medium">
                                 Acciones
                             </th>
                         </tr>
@@ -117,15 +163,15 @@ function confirmDelete() {
                             :key="u.id"
                             class="border-t hover:bg-muted/30"
                         >
-                            <td class="px-5 py-3 font-medium">
+                            <td class="px-4 py-3 font-medium">
                                 {{ u.full_name }}
                             </td>
-                            <td class="px-5 py-3 text-muted-foreground">
+                            <td class="px-4 py-3 text-muted-foreground">
                                 {{ u.username }}
                             </td>
-                            <td class="px-5 py-3">{{ u.cedula }}</td>
-                            <td class="px-5 py-3">{{ u.email }}</td>
-                            <td class="px-5 py-3">
+                            <td class="px-4 py-3">{{ u.cedula }}</td>
+                            <td class="px-4 py-3">{{ u.email }}</td>
+                            <td class="px-4 py-3">
                                 <span
                                     :class="[
                                         'rounded-full px-2 py-0.5 text-xs font-medium',
@@ -136,10 +182,10 @@ function confirmDelete() {
                                     {{ u.role }}
                                 </span>
                             </td>
-                            <td class="px-5 py-3 text-muted-foreground">
+                            <td class="hidden px-4 py-3 text-muted-foreground 2xl:table-cell">
                                 {{ u.created_at }}
                             </td>
-                            <td class="px-5 py-3">
+                            <td class="px-4 py-3">
                                 <div class="flex gap-2">
                                     <Link :href="`/admin/users/${u.id}/edit`">
                                         <Button variant="outline" size="sm"
@@ -173,7 +219,7 @@ function confirmDelete() {
     <ConfirmDialog
         ref="confirmDialog"
         :title="`¿Eliminar usuario?`"
-        :description="pendingDelete ? `Se eliminará permanentemente a &quot;${pendingDelete.name}&quot;. Esta acción no se puede deshacer.` : ''"
+        :description="pendingDelete ? `Se eliminará permanentemente a «${pendingDelete.name}». Esta acción no se puede deshacer.` : ''"
         confirm-label="Sí, eliminar"
         @confirm="confirmDelete"
     />

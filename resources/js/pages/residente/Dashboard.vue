@@ -41,46 +41,46 @@ defineProps<{
             </Link>
 
             <!-- Stats -->
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid grid-cols-2 gap-2 sm:gap-4">
                 <div class="stat-card">
-                    <div class="absolute right-4 top-4 rounded-xl bg-teal-500/10 p-2">
+                    <div class="absolute right-4 top-4 hidden rounded-xl bg-teal-500/10 p-2 sm:block">
                         <Users class="h-4 w-4 text-teal-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">En el edificio ahora</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight text-teal-600">{{ stats.inside_now }}</p>
+                    <p class="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl text-teal-600">{{ stats.inside_now }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">personas en tu unidad</p>
                 </div>
                 <div class="stat-card">
-                    <div class="absolute right-4 top-4 rounded-xl bg-blue-500/10 p-2">
+                    <div class="absolute right-4 top-4 hidden rounded-xl bg-blue-500/10 p-2 sm:block">
                         <History class="h-4 w-4 text-blue-500" />
                     </div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Ingresos hoy</p>
-                    <p class="mt-1.5 text-4xl font-bold tracking-tight text-blue-600">{{ stats.entries_today }}</p>
+                    <p class="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl text-blue-600">{{ stats.entries_today }}</p>
                     <p class="mt-1 text-xs text-muted-foreground">registros del día</p>
                 </div>
             </div>
 
             <!-- Accesos rápidos -->
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid grid-cols-2 gap-2 sm:gap-3">
                 <Link href="/carnet"
-                    class="flex items-center gap-4 rounded-xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-transparent p-5 transition-all hover:border-violet-400 hover:shadow-[0_4px_24px_rgba(139,92,246,0.15)]">
+                    class="flex flex-col items-center gap-2 rounded-xl border-2 border-violet-200 p-3 text-center sm:flex-row sm:gap-4 sm:p-5 sm:text-left bg-gradient-to-br from-violet-50 to-transparent transition-all hover:border-violet-400 hover:shadow-[0_4px_24px_rgba(139,92,246,0.15)]">
                     <div class="rounded-xl bg-violet-600 p-3 shrink-0 shadow-[0_4px_12px_rgba(139,92,246,0.25)]">
                         <CreditCard class="h-5 w-5 text-white" />
                     </div>
                     <div>
                         <p class="font-bold text-violet-900 dark:text-violet-300">Mi Carnet Digital</p>
-                        <p class="text-xs text-muted-foreground">Identifícate con QR</p>
+                        <p class="hidden text-xs text-muted-foreground sm:block">Identifícate con QR</p>
                     </div>
                 </Link>
 
                 <Link href="/announcements"
-                    class="relative flex items-center gap-4 rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-transparent p-5 transition-all hover:border-amber-400 hover:shadow-[0_4px_24px_rgba(245,158,11,0.15)]">
+                    class="relative flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 p-3 text-center sm:flex-row sm:gap-4 sm:p-5 sm:text-left bg-gradient-to-br from-amber-50 to-transparent transition-all hover:border-amber-400 hover:shadow-[0_4px_24px_rgba(245,158,11,0.15)]">
                     <div class="rounded-xl bg-amber-500 p-3 shrink-0 shadow-[0_4px_12px_rgba(245,158,11,0.25)]">
                         <Bell class="h-5 w-5 text-white" />
                     </div>
                     <div>
                         <p class="font-bold text-amber-900 dark:text-amber-300">Comunicados</p>
-                        <p class="text-xs text-muted-foreground">Avisos de la administración</p>
+                        <p class="hidden text-xs text-muted-foreground sm:block">Avisos de la administración</p>
                     </div>
                     <span v-if="unread > 0"
                         class="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">

@@ -42,7 +42,7 @@ function submit() {
             <div class="mb-6 flex items-center gap-4">
                 <Link
                     href="/admin/users"
-                    class="text-muted-foreground hover:text-foreground"
+                    class="shrink-0 py-2 text-muted-foreground hover:text-foreground"
                     >← Volver</Link
                 >
                 <div>
